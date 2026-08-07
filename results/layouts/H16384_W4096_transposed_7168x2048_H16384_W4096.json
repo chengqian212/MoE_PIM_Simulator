@@ -1,0 +1,1236 @@
+{
+  "layout_version": 1,
+  "template": {
+    "template_id": "transposed_7168x2048_H16384_W4096",
+    "base_rows": 7168,
+    "base_cols": 2048,
+    "orientation_mode": "transposed",
+    "chunk_count": 2,
+    "size_histogram": {
+      "2048x3072": 1,
+      "2048x4096": 1
+    },
+    "chunks": [
+      {
+        "template_chunk_id": 0,
+        "row_start": 0,
+        "col_start": 0,
+        "rows": 4096,
+        "cols": 2048,
+        "size_key": [
+          2048,
+          4096
+        ]
+      },
+      {
+        "template_chunk_id": 1,
+        "row_start": 4096,
+        "col_start": 0,
+        "rows": 3072,
+        "cols": 2048,
+        "size_key": [
+          2048,
+          3072
+        ]
+      }
+    ]
+  },
+  "H": 16384,
+  "W": 4096,
+  "matrix_count": 32,
+  "P": 8,
+  "slot_count": 64,
+  "total_weight_area": 469762048,
+  "packing_utilization": 0.875,
+  "internal_fragmentation": 67108864,
+  "slot_size_histogram": {
+    "2048x3072": 32,
+    "2048x4096": 32
+  },
+  "planes": [
+    {
+      "plane_id": 0,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 67108864,
+      "unused_area": 0,
+      "utilization": 1.0,
+      "signature": [
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 0,
+          "plane_id": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 1,
+          "plane_id": 0,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 2,
+          "plane_id": 0,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 3,
+          "plane_id": 0,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 4,
+          "plane_id": 0,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 5,
+          "plane_id": 0,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 6,
+          "plane_id": 0,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 7,
+          "plane_id": 0,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 1,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 67108864,
+      "unused_area": 0,
+      "utilization": 1.0,
+      "signature": [
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 8,
+          "plane_id": 1,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 9,
+          "plane_id": 1,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 10,
+          "plane_id": 1,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 11,
+          "plane_id": 1,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 12,
+          "plane_id": 1,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 13,
+          "plane_id": 1,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 14,
+          "plane_id": 1,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 15,
+          "plane_id": 1,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 2,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 67108864,
+      "unused_area": 0,
+      "utilization": 1.0,
+      "signature": [
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 16,
+          "plane_id": 2,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 17,
+          "plane_id": 2,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 18,
+          "plane_id": 2,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 19,
+          "plane_id": 2,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 20,
+          "plane_id": 2,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 21,
+          "plane_id": 2,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 22,
+          "plane_id": 2,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 23,
+          "plane_id": 2,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 3,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 67108864,
+      "unused_area": 0,
+      "utilization": 1.0,
+      "signature": [
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ],
+        [
+          2048,
+          4096
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 24,
+          "plane_id": 3,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 25,
+          "plane_id": 3,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 26,
+          "plane_id": 3,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 27,
+          "plane_id": 3,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 28,
+          "plane_id": 3,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 29,
+          "plane_id": 3,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 4096,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 30,
+          "plane_id": 3,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 31,
+          "plane_id": 3,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 4096,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            4096
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 4,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 50331648,
+      "unused_area": 16777216,
+      "utilization": 0.75,
+      "signature": [
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 32,
+          "plane_id": 4,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 33,
+          "plane_id": 4,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 34,
+          "plane_id": 4,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 35,
+          "plane_id": 4,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 36,
+          "plane_id": 4,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 37,
+          "plane_id": 4,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 38,
+          "plane_id": 4,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 39,
+          "plane_id": 4,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 5,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 50331648,
+      "unused_area": 16777216,
+      "utilization": 0.75,
+      "signature": [
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 40,
+          "plane_id": 5,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 41,
+          "plane_id": 5,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 42,
+          "plane_id": 5,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 43,
+          "plane_id": 5,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 44,
+          "plane_id": 5,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 45,
+          "plane_id": 5,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 46,
+          "plane_id": 5,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 47,
+          "plane_id": 5,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 6,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 50331648,
+      "unused_area": 16777216,
+      "utilization": 0.75,
+      "signature": [
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 48,
+          "plane_id": 6,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 49,
+          "plane_id": 6,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 50,
+          "plane_id": 6,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 51,
+          "plane_id": 6,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 52,
+          "plane_id": 6,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 53,
+          "plane_id": 6,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 54,
+          "plane_id": 6,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 55,
+          "plane_id": 6,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    },
+    {
+      "plane_id": 7,
+      "H": 16384,
+      "W": 4096,
+      "used_area": 50331648,
+      "unused_area": 16777216,
+      "utilization": 0.75,
+      "signature": [
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ],
+        [
+          2048,
+          3072
+        ]
+      ],
+      "slots": [
+        {
+          "slot_id": 56,
+          "plane_id": 7,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 57,
+          "plane_id": 7,
+          "x": 2048,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 58,
+          "plane_id": 7,
+          "x": 4096,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 59,
+          "plane_id": 7,
+          "x": 6144,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 60,
+          "plane_id": 7,
+          "x": 8192,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 61,
+          "plane_id": 7,
+          "x": 10240,
+          "y": 0,
+          "slot_rows": 2048,
+          "slot_cols": 3072,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": true
+        },
+        {
+          "slot_id": 62,
+          "plane_id": 7,
+          "x": 12288,
+          "y": 0,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        },
+        {
+          "slot_id": 63,
+          "plane_id": 7,
+          "x": 12288,
+          "y": 2048,
+          "slot_rows": 3072,
+          "slot_cols": 2048,
+          "size_key": [
+            2048,
+            3072
+          ],
+          "orientation_swapped": false
+        }
+      ]
+    }
+  ]
+}
