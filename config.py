@@ -68,7 +68,7 @@ class ModelConfig:
     matrices_per_expert: int = 3
 
     # 当前 Baseline 默认不考虑 Shared Expert
-    include_shared_expert: bool = False
+    include_shared_expert: bool = True
 
     def __post_init__(self) -> None:
         self.validate()
