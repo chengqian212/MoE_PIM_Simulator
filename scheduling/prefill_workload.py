@@ -1495,6 +1495,129 @@ def iter_trace_segment_batches(
 
 
 # ============================================================
+# Prefill-only Fast Iterator
+# ============================================================
+
+
+def iter_prefill_batches(
+    trace_root: Path | str = DEFAULT_TRACE_ROOT,
+    *,
+    max_files: int | None = None,
+    max_batches: int | None = None,
+    stats: PrefillWorkloadStats | None = None,
+    verbose: bool = True,
+) -> Iterator[TraceSegmentBatch]:
+    """
+    只读取每个 JSON 的 segment0。
+
+    当前 Chinese-SimpleQA 已经确认 2020/2020 文件结构均为：
+
+        [N>1, 1, 1, ...]
+
+    因此正式 Prefill 评估没有必要为了取 segment0，继续把后续几十万
+    Decode singleton segment 逐层解析、逐 Top-8 校验后再丢弃。
+
+    本函数与 iter_trace_segment_batches() 使用同一个 build_segment_batch()
+    做 segment0 的完整合法性检查，所以不会改变 Prefill route 内容或调度语义；
+    它只减少与 Prefill 无关的 Trace 解析工作。
+
+    注意：这里的 stats 是“Prefill-only 扫描统计”，不再代表整个文件中
+    所有 Decode segment 的完整统计。需要数据集结构审计时仍使用
+    scan_prefill_workload()/iter_trace_segment_batches()。
+    """
+
+    root = Path(trace_root).resolve()
+    files = list(discover_trace_files(root))
+
+    if max_files is not None:
+        if max_files <= 0:
+            raise PrefillWorkloadError("max_files 必须大于 0。")
+        files = files[:max_files]
+
+    if max_batches is not None and max_batches <= 0:
+        raise PrefillWorkloadError("max_batches 必须大于 0。")
+
+    if stats is None:
+        stats = PrefillWorkloadStats()
+
+    # Prefill-only reset
+    stats.discovered_file_count = len(files)
+    stats.processed_file_count = 0
+    stats.trace_segment_count = 0
+    stats.valid_segment_count = 0
+    stats.skipped_segment_count = 0
+    stats.yielded_batch_count = 0
+    stats.prefill_candidate_count = 0
+    stats.decode_candidate_count = 0
+    stats.ambiguous_singleton_count = 0
+    stats.unexpected_multi_token_count = 0
+    stats.total_token_count = 0
+    stats.prefill_candidate_token_count = 0
+    stats.decode_candidate_token_count = 0
+    stats.canonical_file_count = 0
+    stats.singleton_only_file_count = 0
+    stats.noncanonical_file_count = 0
+    stats.segment_token_histogram = Counter()
+    stats.prefill_token_histogram = Counter()
+    stats.category_file_counts = {}
+
+    batch_id = 0
+    total_files = len(files)
+
+    for file_index, path in enumerate(files, start=1):
+        relative = path.relative_to(root)
+        relative_text = str(relative)
+        category = relative.parts[0] if len(relative.parts) >= 2 else "__root__"
+
+        assert stats.category_file_counts is not None
+        stats.category_file_counts[category] = (
+            stats.category_file_counts.get(category, 0) + 1
+        )
+
+        data = _load_json(path)
+        stats.processed_file_count += 1
+
+        # 不解析后续 segment，但记录原文件里一共有多少 segment，方便进度观察。
+        stats.trace_segment_count += len(data)
+
+        if verbose and (
+            file_index == 1
+            or file_index == total_files
+            or file_index % 100 == 0
+        ):
+            print(
+                f"[PrefillOnlyWorkload] {file_index}/{total_files} {relative}"
+            )
+
+        segment0 = data[0]
+        batch = build_segment_batch(
+            path=path,
+            relative_file=relative_text,
+            category=category,
+            batch_id=batch_id,
+            segment_index=0,
+            segment=segment0,
+        )
+
+        if batch is None:
+            stats.skipped_segment_count += 1
+            continue
+
+        # 正式 Prefill 只接受 segment0 多 Token candidate。
+        if batch.stage != STAGE_PREFILL_CANDIDATE:
+            stats.skipped_segment_count += 1
+            continue
+
+        _update_batch_stats(batch=batch, stats=stats)
+        stats.yielded_batch_count += 1
+        yield batch
+
+        batch_id += 1
+        if max_batches is not None and batch_id >= max_batches:
+            return
+
+
+# ============================================================
 # Scan
 # ============================================================
 

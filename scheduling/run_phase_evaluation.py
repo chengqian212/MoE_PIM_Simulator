@@ -356,9 +356,13 @@ def run_prefill(
 
     prefill_max_batches: int | None,
 
+    exact_check: int,
+
     reuse_existing: bool,
 
     progress_every: int,
+
+    workers: int = 0,
 ) -> StageRunResult:
 
     if (
@@ -382,7 +386,7 @@ def run_prefill(
     command = [
         python_executable,
         "-m",
-        "scheduling.prefill_evaluator",
+        "scheduling.prefill_fast_evaluator",
 
         "--mapping",
         str(
@@ -394,9 +398,19 @@ def run_prefill(
             output_path
         ),
 
+        "--exact-check",
+        str(
+            exact_check
+        ),
+
         "--progress-every",
         str(
             progress_every
+        ),
+
+        "--workers",
+        str(
+            workers
         ),
     ]
 
@@ -470,6 +484,8 @@ def run_decode(
     reuse_existing: bool,
 
     progress_every: int,
+
+    workers: int = 0,
 ) -> StageRunResult:
 
     if (
@@ -518,6 +534,11 @@ def run_decode(
         "--progress-every",
         str(
             progress_every
+        ),
+
+        "--workers",
+        str(
+            workers
         ),
     ]
 
@@ -815,6 +836,16 @@ def main() -> None:
     )
 
     # ========================================================
+    # Prefill Fast
+    # ========================================================
+
+    parser.add_argument(
+        "--prefill-exact-check",
+        type=int,
+        default=5,
+    )
+
+    # ========================================================
     # Decode Fast
     # ========================================================
 
@@ -828,6 +859,20 @@ def main() -> None:
         "--cache-size",
         type=int,
         default=200000,
+    )
+
+    # ========================================================
+    # Parallel
+    # ========================================================
+
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help=(
+            "Prefill / Decode 并行 worker 数；"
+            "0=自动（最多8），1=关闭多进程。"
+        ),
     )
 
     # ========================================================
@@ -904,6 +949,16 @@ def main() -> None:
         raise PhaseEvaluationRunnerError(
             "--decode-max-tokens "
             "必须大于 0。"
+        )
+
+    if (
+        args.prefill_exact_check
+        < 0
+    ):
+
+        raise PhaseEvaluationRunnerError(
+            "--prefill-exact-check "
+            "不能小于 0。"
         )
 
     if (
@@ -1021,6 +1076,10 @@ def main() -> None:
                     .prefill_max_batches
                 ),
 
+                exact_check=(
+                    args.prefill_exact_check
+                ),
+
                 reuse_existing=(
                     args
                     .reuse_existing
@@ -1029,6 +1088,10 @@ def main() -> None:
                 progress_every=(
                     args
                     .prefill_progress_every
+                ),
+
+                workers=(
+                    args.workers
                 ),
             )
         )
@@ -1087,6 +1150,10 @@ def main() -> None:
                     args
                     .decode_progress_every
                 ),
+
+                workers=(
+                    args.workers
+                ),
             )
         )
 
@@ -1123,6 +1190,10 @@ def main() -> None:
                 .prefill_max_batches
             ),
 
+            exact_check=(
+                args.prefill_exact_check
+            ),
+
             reuse_existing=(
                 args
                 .reuse_existing
@@ -1131,6 +1202,10 @@ def main() -> None:
             progress_every=(
                 args
                 .prefill_progress_every
+            ),
+
+            workers=(
+                args.workers
             ),
         )
     )
@@ -1174,6 +1249,10 @@ def main() -> None:
             progress_every=(
                 args
                 .decode_progress_every
+            ),
+
+            workers=(
+                args.workers
             ),
         )
     )

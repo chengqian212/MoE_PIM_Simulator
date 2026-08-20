@@ -211,6 +211,7 @@ def build_decode_token(
     segment_index: int,
     segment: object,
     strict_singleton: bool = True,
+    raw_routes_by_layer: list[tuple[int, list]] | None = None,
 ) -> TraceToken | None:
     """
     将一个 segment1+ 转成一个纯 Decode TraceToken。
@@ -236,11 +237,14 @@ def build_decode_token(
             "必须是 dict。"
         )
 
-    raw_routes_by_layer = (
-        collect_segment_routes(
-            segment=segment
+    # iter_decode_tokens() 已经做过 collect_segment_routes() 时，
+    # 直接复用，避免每个有效 Decode Segment 再扫描一遍 58 层。
+    if raw_routes_by_layer is None:
+        raw_routes_by_layer = (
+            collect_segment_routes(
+                segment=segment
+            )
         )
-    )
 
     # ========================================================
     # 不完整 Segment
@@ -674,6 +678,10 @@ def iter_decode_tokens(
 
                     strict_singleton=(
                         strict_singleton
+                    ),
+
+                    raw_routes_by_layer=(
+                        raw_routes_by_layer
                     ),
                 )
             )
