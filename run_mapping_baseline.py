@@ -98,6 +98,9 @@ from mapping.physical_binder import (
 )
 
 from mapping.plane_pairer import (
+    PAIRING_MODE_SEQUENTIAL,
+    PAIRING_MODE_TRACE_AWARE,
+    PAIRING_MODES,
     PairingResult,
     build_logical_planes,
     print_pairing_summary,
@@ -111,6 +114,9 @@ from mapping.spatial_layout_loader import (
 )
 
 from mapping.subcube_mapper import (
+    MAPPING_MODE_ROUND_ROBIN,
+    MAPPING_MODE_TRACE_AWARE,
+    MAPPING_MODES,
     SubcubeMappingResult,
     map_logical_planes_to_subcubes,
     print_subcube_mapping_summary,
@@ -437,6 +443,8 @@ def build_output_dict(
     pairing: PairingResult,
     subcube_mapping: SubcubeMappingResult,
     binding: PhysicalBindingResult,
+    pairing_mode: str,
+    mapping_mode: str,
     local_search_enabled: bool,
     local_search_rounds: int,
 ) -> dict[
@@ -758,6 +766,10 @@ def build_output_dict(
         # ====================================================
 
         "pairing": {
+            "mode": (
+                pairing_mode
+            ),
+
             "local_search_enabled": (
                 local_search_enabled
             ),
@@ -803,6 +815,10 @@ def build_output_dict(
         # ====================================================
 
         "subcube_mapping": {
+            "mode": (
+                mapping_mode
+            ),
+
             "plane_counts": [
                 int(value)
                 for value
@@ -937,26 +953,71 @@ def build_default_output_path(
     *,
     results_dir: Path,
     spatial: SpatialLayoutBundle,
+    pairing_mode: str,
+    mapping_mode: str,
     max_files: int | None,
 ) -> Path:
     """
-    完整 trace：
+    根据 Pairing + Mapping 两个模式自动命名四组主消融：
 
-        mapping_baseline_N4_H7168_W4096.json
+        trace_aware + trace_aware
+            -> mapping_baseline_...
 
-    只跑 10 个文件：
+        sequential + trace_aware
+            -> mapping_mapping_only_...
 
-        mapping_debug_10files_N4_H7168_W4096.json
+        trace_aware + round_robin
+            -> mapping_pairing_only_...
+
+        sequential + round_robin
+            -> mapping_naive_...
+
+    Full Baseline 继续保留原文件名，
+    不破坏现有 Prefill / Decode / WebUI 默认路径。
     """
 
-    hardware = (
-        spatial.hardware
+    mode_pair = (
+        pairing_mode,
+        mapping_mode,
     )
+
+    if mode_pair == (
+        PAIRING_MODE_TRACE_AWARE,
+        MAPPING_MODE_TRACE_AWARE,
+    ):
+        experiment_name = "baseline"
+
+    elif mode_pair == (
+        PAIRING_MODE_SEQUENTIAL,
+        MAPPING_MODE_TRACE_AWARE,
+    ):
+        experiment_name = "mapping_only"
+
+    elif mode_pair == (
+        PAIRING_MODE_TRACE_AWARE,
+        MAPPING_MODE_ROUND_ROBIN,
+    ):
+        experiment_name = "pairing_only"
+
+    elif mode_pair == (
+        PAIRING_MODE_SEQUENTIAL,
+        MAPPING_MODE_ROUND_ROBIN,
+    ):
+        experiment_name = "naive"
+
+    else:
+        raise MappingBaselineError(
+            "未知 Pairing/Mapping 模式组合："
+            f"pairing={pairing_mode!r}, "
+            f"mapping={mapping_mode!r}。"
+        )
+
+    hardware = spatial.hardware
 
     if max_files is None:
 
         filename = (
-            "mapping_baseline_"
+            f"mapping_{experiment_name}_"
             f"N{hardware.N}_"
             f"H{hardware.H}_"
             f"W{hardware.W}.json"
@@ -965,7 +1026,7 @@ def build_default_output_path(
     else:
 
         filename = (
-            "mapping_debug_"
+            f"mapping_{experiment_name}_debug_"
             f"{max_files}files_"
             f"N{hardware.N}_"
             f"H{hardware.H}_"
@@ -1142,8 +1203,17 @@ def run_mapping_baseline(
         "Logical Plane Pairing"
     )
 
+    # Sequential Pairing 本身不使用 Local Search。
+    # --no-local-search 只对 trace_aware 模式有意义。
     local_search_enabled = (
+        args.pairing_mode
+        == PAIRING_MODE_TRACE_AWARE
+        and
         not args.no_local_search
+    )
+
+    print(
+        f"Pairing Mode：{args.pairing_mode}"
     )
 
     pairing = (
@@ -1151,6 +1221,10 @@ def run_mapping_baseline(
             cubes=cubes,
 
             profile=profile,
+
+            pairing_mode=(
+                args.pairing_mode
+            ),
 
             improve_pairs=(
                 local_search_enabled
@@ -1197,6 +1271,10 @@ def run_mapping_baseline(
         "Map LogicalPlane to Sub-Cube"
     )
 
+    print(
+        f"Mapping Mode：{args.mapping_mode}"
+    )
+
     subcube_mapping = (
         map_logical_planes_to_subcubes(
             pairing=pairing,
@@ -1207,6 +1285,10 @@ def run_mapping_baseline(
 
             hardware=(
                 spatial.hardware
+            ),
+
+            mapping_mode=(
+                args.mapping_mode
             ),
         )
     )
@@ -1320,6 +1402,14 @@ def run_mapping_baseline(
 
                 binding=binding,
 
+                pairing_mode=(
+                    args.pairing_mode
+                ),
+
+                mapping_mode=(
+                    args.mapping_mode
+                ),
+
                 local_search_enabled=(
                     local_search_enabled
                 ),
@@ -1339,6 +1429,14 @@ def run_mapping_baseline(
                     ),
 
                     spatial=spatial,
+
+                    pairing_mode=(
+                        args.pairing_mode
+                    ),
+
+                    mapping_mode=(
+                        args.mapping_mode
+                    ),
 
                     max_files=(
                         args.max_files
@@ -1429,6 +1527,16 @@ def run_mapping_baseline(
     print(
         f"Empty Plane Slots："
         f"{spatial.empty_plane_slots}"
+    )
+
+    print(
+        f"Pairing Mode："
+        f"{args.pairing_mode}"
+    )
+
+    print(
+        f"Mapping Mode："
+        f"{args.mapping_mode}"
     )
 
     print(
@@ -1535,6 +1643,21 @@ def main() -> None:
     # ========================================================
 
     parser.add_argument(
+        "--pairing-mode",
+        type=str,
+        default=(
+            PAIRING_MODE_TRACE_AWARE
+        ),
+        choices=PAIRING_MODES,
+        help=(
+            "Routed up Pairing 策略："
+            "trace_aware=当前 Greedy+Local Search；"
+            "sequential=固定 E0-E1、E2-E3...，"
+            "用于消融实验。"
+        ),
+    )
+
+    parser.add_argument(
         "--no-local-search",
         action="store_true",
 
@@ -1549,6 +1672,25 @@ def main() -> None:
         "--local-search-rounds",
         type=int,
         default=4,
+    )
+
+    # ========================================================
+    # Sub-Cube Mapping
+    # ========================================================
+
+    parser.add_argument(
+        "--mapping-mode",
+        type=str,
+        default=(
+            MAPPING_MODE_TRACE_AWARE
+        ),
+        choices=MAPPING_MODES,
+        help=(
+            "LogicalPlane -> Sub-Cube 策略："
+            "trace_aware=当前正式 Trace-aware Mapping；"
+            "round_robin=不使用 Trace 决策的受约束轮询，"
+            "用于消融实验。"
+        ),
     )
 
     # ========================================================

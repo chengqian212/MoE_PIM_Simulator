@@ -2,3 +2,4 @@ deepseek_r1_trace/__pycache__/
 *.pyc
 node_modules/
 /deepseek_r1_trace/
+deepseek_r1_trace/

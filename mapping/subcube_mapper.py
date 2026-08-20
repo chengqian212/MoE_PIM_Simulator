@@ -125,6 +125,20 @@ SHARED_EXPERT_ID = (
 
 
 # ============================================================
+# Mapping 模式
+# ============================================================
+
+
+MAPPING_MODE_TRACE_AWARE = "trace_aware"
+MAPPING_MODE_ROUND_ROBIN = "round_robin"
+
+MAPPING_MODES = (
+    MAPPING_MODE_TRACE_AWARE,
+    MAPPING_MODE_ROUND_ROBIN,
+)
+
+
+# ============================================================
 # 异常
 # ============================================================
 
@@ -1691,6 +1705,568 @@ def _calculate_conflicts(
     )
 
 
+
+# ============================================================
+# Round-Robin Baseline
+# ============================================================
+
+
+def _cyclic_distance(
+    *,
+    start: int,
+    target: int,
+    size: int,
+) -> int:
+    """
+    从 start 开始循环扫描到 target 的距离。
+
+    仅用于 Round-Robin 的确定性 tie-break。
+    """
+
+    return (
+        target - start
+    ) % size
+
+
+def _choose_round_robin_subcube(
+    *,
+    plane_counts: list[int],
+    D: int,
+    cursor: int,
+    forbidden: set[int],
+) -> int:
+    """
+    受约束的 Round-Robin。
+
+    不读取：
+        frequency
+        coactivation
+        weighted load
+
+    只遵守两个硬约束：
+
+    1. 每个 Sub-Cube 最多 D 个 Plane；
+    2. forbidden 中的 Sub-Cube 不可选
+       （当前用于保持同 Expert gate/up 分离）。
+
+    为避免在接近容量上限时过早塞满少数 SC，
+    先选择“当前 Plane 数最少”的合法 SC，
+    再按照 cursor -> cursor+1 -> ... 的轮询顺序
+    做确定性 tie-break。
+
+    因此它仍然是一个不看 Trace 的、
+    容量均衡的 Round-Robin Baseline。
+    """
+
+    num_subcubes = len(
+        plane_counts
+    )
+
+    if num_subcubes <= 0:
+        raise SubcubeMappingError(
+            "Round-Robin：Sub-Cube 数量必须大于 0。"
+        )
+
+    if not (
+        0
+        <= cursor
+        < num_subcubes
+    ):
+        raise SubcubeMappingError(
+            f"Round-Robin cursor={cursor} 非法。"
+        )
+
+    candidates = [
+        sc
+        for sc
+        in range(
+            num_subcubes
+        )
+        if (
+            sc not in forbidden
+            and
+            plane_counts[sc] < D
+        )
+    ]
+
+    if not candidates:
+        raise SubcubeMappingError(
+            "Round-Robin 找不到满足容量与 "
+            "gate/up 分离约束的 Sub-Cube。"
+        )
+
+    min_count = min(
+        plane_counts[sc]
+        for sc
+        in candidates
+    )
+
+    balanced_candidates = [
+        sc
+        for sc
+        in candidates
+        if (
+            plane_counts[sc]
+            == min_count
+        )
+    ]
+
+    return min(
+        balanced_candidates,
+        key=lambda sc: (
+            _cyclic_distance(
+                start=cursor,
+                target=sc,
+                size=num_subcubes,
+            ),
+            sc,
+        ),
+    )
+
+
+def _map_logical_planes_round_robin(
+    *,
+    pairing: PairingResult,
+
+    cubes: Iterable[
+        LogicalWeightCube
+    ],
+
+    profile: TraceProfile,
+
+    hardware: (
+        ResolvedHardwareConfig
+    ),
+) -> SubcubeMappingResult:
+    """
+    不使用 Trace 做决策的 Sub-Cube Mapping Baseline。
+
+    映射顺序：
+
+    1. gate/down Plane 按 logical_plane_id 排序；
+    2. up/up Plane 按 logical_plane_id 排序；
+    3. 每张 Plane 使用受约束 Round-Robin 分配；
+    4. gate/up 分离仍作为硬约束保留；
+    5. 最后才使用 Trace 统计 conflict / weighted load，
+       这些统计不会反过来影响 Round-Robin 的选择。
+
+    这正好用于消融：
+
+        Pairing Only:
+            Trace-aware Pairing
+            +
+            Round-Robin Mapping
+
+        Naive:
+            Sequential Pairing
+            +
+            Round-Robin Mapping
+    """
+
+    cube_list = tuple(
+        cubes
+    )
+
+    (
+        gate_down_planes,
+        up_planes,
+        cube_index,
+    ) = _build_plane_groups(
+        pairing=pairing,
+        cubes=cube_list,
+    )
+
+    num_subcubes = (
+        hardware.num_subcubes
+    )
+
+    plane_counts = [
+        0
+        for _ in range(
+            num_subcubes
+        )
+    ]
+
+    gate_experts_by_layer_sc = [
+        [
+            []
+            for _ in range(
+                num_subcubes
+            )
+        ]
+        for _ in range(
+            NUM_MOE_LAYERS
+        )
+    ]
+
+    up_experts_by_layer_sc = [
+        [
+            []
+            for _ in range(
+                num_subcubes
+            )
+        ]
+        for _ in range(
+            NUM_MOE_LAYERS
+        )
+    ]
+
+    pre_load = [
+        [
+            0
+            for _ in range(
+                num_subcubes
+            )
+        ]
+        for _ in range(
+            NUM_MOE_LAYERS
+        )
+    ]
+
+    down_load = [
+        [
+            0
+            for _ in range(
+                num_subcubes
+            )
+        ]
+        for _ in range(
+            NUM_MOE_LAYERS
+        )
+    ]
+
+    gate_down_subcube = [
+        [
+            -1
+            for _ in range(
+                NUM_ROUTED_EXPERTS
+                + 1
+            )
+        ]
+        for _ in range(
+            NUM_MOE_LAYERS
+        )
+    ]
+
+    plane_to_subcube: dict[
+        int,
+        int,
+    ] = {}
+
+    # ========================================================
+    # 第一阶段：gate/down
+    # ========================================================
+
+    cursor = 0
+
+    gate_down_order = sorted(
+        gate_down_planes.values(),
+        key=lambda plane: (
+            plane.logical_plane_id
+        ),
+    )
+
+    for plane in gate_down_order:
+
+        (
+            layer_id,
+            expert_id,
+        ) = _extract_gate_down_expert(
+            plane=plane,
+            cube_index=cube_index,
+        )
+
+        sc = _choose_round_robin_subcube(
+            plane_counts=plane_counts,
+            D=hardware.D,
+            cursor=cursor,
+            forbidden=set(),
+        )
+
+        cursor = (
+            sc + 1
+        ) % num_subcubes
+
+        activation = (
+            _activation_count(
+                profile,
+                layer_id,
+                expert_id,
+            )
+        )
+
+        plane_to_subcube[
+            plane.logical_plane_id
+        ] = sc
+
+        gate_down_subcube[
+            layer_id
+        ][
+            expert_id
+        ] = sc
+
+        gate_experts_by_layer_sc[
+            layer_id
+        ][
+            sc
+        ].append(
+            expert_id
+        )
+
+        pre_load[
+            layer_id
+        ][
+            sc
+        ] += activation
+
+        down_load[
+            layer_id
+        ][
+            sc
+        ] += activation
+
+        plane_counts[
+            sc
+        ] += 1
+
+    # ========================================================
+    # 第二阶段：up/up
+    # ========================================================
+
+    up_order = sorted(
+        up_planes,
+        key=lambda plane: (
+            plane.logical_plane_id
+        ),
+    )
+
+    for plane in up_order:
+
+        members = (
+            _extract_up_members(
+                plane=plane,
+                cube_index=cube_index,
+            )
+        )
+
+        forbidden = {
+            gate_down_subcube[
+                layer_id
+            ][
+                expert_id
+            ]
+            for (
+                layer_id,
+                expert_id,
+            ) in members
+        }
+
+        if (
+            -1
+            in forbidden
+        ):
+            raise SubcubeMappingError(
+                f"LogicalPlane-{plane.logical_plane_id} "
+                "对应 Expert 的 gate/down "
+                "尚未完成 Round-Robin 映射。"
+            )
+
+        sc = _choose_round_robin_subcube(
+            plane_counts=plane_counts,
+            D=hardware.D,
+            cursor=cursor,
+            forbidden=forbidden,
+        )
+
+        cursor = (
+            sc + 1
+        ) % num_subcubes
+
+        plane_to_subcube[
+            plane.logical_plane_id
+        ] = sc
+
+        plane_counts[
+            sc
+        ] += 1
+
+        for (
+            layer_id,
+            expert_id,
+        ) in members:
+
+            activation = (
+                _activation_count(
+                    profile,
+                    layer_id,
+                    expert_id,
+                )
+            )
+
+            up_experts_by_layer_sc[
+                layer_id
+            ][
+                sc
+            ].append(
+                expert_id
+            )
+
+            pre_load[
+                layer_id
+            ][
+                sc
+            ] += activation
+
+    # ========================================================
+    # 第三阶段：z
+    # ========================================================
+
+    plane_ids_by_sc = [
+        []
+        for _ in range(
+            num_subcubes
+        )
+    ]
+
+    for plane in pairing.planes:
+
+        try:
+            sc = plane_to_subcube[
+                plane.logical_plane_id
+            ]
+        except KeyError as exc:
+            raise SubcubeMappingError(
+                f"LogicalPlane-{plane.logical_plane_id} "
+                "未完成 Round-Robin 映射。"
+            ) from exc
+
+        plane_ids_by_sc[
+            sc
+        ].append(
+            plane.logical_plane_id
+        )
+
+    placement_by_id: dict[
+        int,
+        LogicalPlanePlacement,
+    ] = {}
+
+    for sc in range(
+        num_subcubes
+    ):
+
+        plane_ids = sorted(
+            plane_ids_by_sc[
+                sc
+            ]
+        )
+
+        if (
+            len(plane_ids)
+            > hardware.D
+        ):
+            raise SubcubeMappingError(
+                f"Round-Robin：Sub-Cube-{sc} "
+                f"使用 {len(plane_ids)} 个 Plane，"
+                f"超过 D={hardware.D}。"
+            )
+
+        for (
+            z,
+            logical_plane_id,
+        ) in enumerate(
+            plane_ids
+        ):
+
+            placement_by_id[
+                logical_plane_id
+            ] = LogicalPlanePlacement(
+                logical_plane_id=(
+                    logical_plane_id
+                ),
+                subcube_id=sc,
+                z=z,
+            )
+
+    placements = tuple(
+        placement_by_id[
+            plane.logical_plane_id
+        ]
+        for plane in sorted(
+            pairing.planes,
+            key=lambda item: (
+                item.logical_plane_id
+            ),
+        )
+    )
+
+    # ========================================================
+    # 第四阶段：事后统计
+    #
+    # 注意：
+    # 这里使用 Trace 只用于“测量结果”，
+    # 不参与任何 Round-Robin 选择。
+    # ========================================================
+
+    (
+        pre_conflict,
+        down_conflict,
+    ) = _calculate_conflicts(
+        profile=profile,
+        gate_experts_by_layer_sc=(
+            gate_experts_by_layer_sc
+        ),
+        up_experts_by_layer_sc=(
+            up_experts_by_layer_sc
+        ),
+    )
+
+    result = SubcubeMappingResult(
+        hardware=hardware,
+
+        placements=placements,
+
+        subcube_plane_counts=tuple(
+            plane_counts
+        ),
+
+        gate_down_subcube_by_layer=tuple(
+            tuple(row)
+            for row
+            in gate_down_subcube
+        ),
+
+        pre_weighted_load_by_layer=tuple(
+            tuple(row)
+            for row
+            in pre_load
+        ),
+
+        down_weighted_load_by_layer=tuple(
+            tuple(row)
+            for row
+            in down_load
+        ),
+
+        pre_conflict_cost=(
+            pre_conflict
+        ),
+
+        down_conflict_cost=(
+            down_conflict
+        ),
+    )
+
+    validate_subcube_mapping(
+        result=result,
+        pairing=pairing,
+        cubes=cube_list,
+        profile=profile,
+    )
+
+    return result
+
+
 # ============================================================
 # 主函数
 # ============================================================
@@ -1709,11 +2285,24 @@ def map_logical_planes_to_subcubes(
     hardware: (
         ResolvedHardwareConfig
     ),
+
+    mapping_mode: str = (
+        MAPPING_MODE_TRACE_AWARE
+    ),
 ) -> SubcubeMappingResult:
     """
     将所有 LogicalPlane 映射到 Sub-Cube。
 
-    当前顺序：
+    mapping_mode：
+
+        trace_aware：
+            当前正式 Trace-aware Mapping。
+
+        round_robin：
+            不使用 Trace 决策的受约束轮询 Baseline；
+            仅保留容量与 gate/up 分离硬约束。
+
+    trace_aware 当前顺序：
 
     第一阶段：
         gate/down Plane
@@ -1731,6 +2320,15 @@ def map_logical_planes_to_subcubes(
     cube_list = tuple(
         cubes
     )
+
+    if (
+        mapping_mode
+        not in MAPPING_MODES
+    ):
+        raise SubcubeMappingError(
+            f"未知 mapping_mode={mapping_mode!r}，"
+            f"允许值为 {MAPPING_MODES}。"
+        )
 
     # ========================================================
     # 0. 基础检查
@@ -1765,6 +2363,28 @@ def map_logical_planes_to_subcubes(
         raise SubcubeMappingError(
             "TraceProfile 的 Layer 数错误。"
         )
+
+    # ========================================================
+    # Round-Robin Baseline
+    # ========================================================
+
+    if (
+        mapping_mode
+        == MAPPING_MODE_ROUND_ROBIN
+    ):
+
+        return (
+            _map_logical_planes_round_robin(
+                pairing=pairing,
+                cubes=cube_list,
+                profile=profile,
+                hardware=hardware,
+            )
+        )
+
+    # ========================================================
+    # Trace-aware Mapping
+    # ========================================================
 
     # ========================================================
     # Plane 分组

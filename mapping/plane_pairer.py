@@ -158,6 +158,20 @@ class PlanePairingError(ValueError):
 
 
 # ============================================================
+# Pairing 模式
+# ============================================================
+
+
+PAIRING_MODE_TRACE_AWARE = "trace_aware"
+PAIRING_MODE_SEQUENTIAL = "sequential"
+
+PAIRING_MODES = (
+    PAIRING_MODE_TRACE_AWARE,
+    PAIRING_MODE_SEQUENTIAL,
+)
+
+
+# ============================================================
 # 类型
 # ============================================================
 
@@ -494,6 +508,74 @@ def _frequency(
         ][
             expert_id
         ]
+    )
+
+
+# ============================================================
+# Routed up 顺序配对（Naive / Ablation Baseline）
+# ============================================================
+
+
+def sequential_pair_routed_up_experts(
+    *,
+    layer_id: int,
+) -> tuple[
+    tuple[int, int],
+    ...
+]:
+    """
+    对某一层的 256 个 Routed up 做固定顺序配对。
+
+    配对方式：
+
+        E0  + E1
+        E2  + E3
+        ...
+        E254 + E255
+
+    该策略完全不读取 frequency / coactivation，
+    用作 Trace-aware Pairing 的确定性消融 Baseline。
+
+    注意：
+
+    后续仍然可以用真实 Trace 计算这组配对的
+    coactivation cost，作为事后评价指标；
+    但 Trace 不参与配对决策本身。
+    """
+
+    if not (
+        0
+        <= layer_id
+        < NUM_MOE_LAYERS
+    ):
+
+        raise PlanePairingError(
+            "layer_id 必须位于 "
+            f"[0,{NUM_MOE_LAYERS - 1}]。"
+        )
+
+    if (
+        NUM_ROUTED_EXPERTS
+        % 2
+        != 0
+    ):
+
+        raise PlanePairingError(
+            "Sequential Pairing 要求 "
+            "Routed Expert 数量为偶数。"
+        )
+
+    return tuple(
+        (
+            expert_id,
+            expert_id + 1,
+        )
+        for expert_id
+        in range(
+            0,
+            NUM_ROUTED_EXPERTS,
+            2,
+        )
     )
 
 
@@ -1076,6 +1158,9 @@ def build_logical_planes(
         LogicalWeightCube
     ],
     profile: TraceProfile,
+    pairing_mode: str = (
+        PAIRING_MODE_TRACE_AWARE
+    ),
     improve_pairs: bool = True,
     local_search_rounds: int = 4,
 ) -> PairingResult:
@@ -1090,7 +1175,19 @@ def build_logical_planes(
 
     --------------------------------------------------------
 
+    pairing_mode：
+
+        trace_aware：
+            使用 Trace-aware Greedy；
+            improve_pairs=True 时再执行 Local Search。
+
+        sequential：
+            固定 E0-E1、E2-E3 ... E254-E255；
+            不使用 Trace 参与配对决策。
+
     improve_pairs：
+
+        仅对 trace_aware 生效。
 
         False：
             只使用 Greedy
@@ -1100,6 +1197,13 @@ def build_logical_planes(
 
     后续做消融实验时可以直接比较。
     """
+
+    if pairing_mode not in PAIRING_MODES:
+
+        raise PlanePairingError(
+            f"非法 pairing_mode={pairing_mode!r}，"
+            f"允许值为 {PAIRING_MODES}。"
+        )
 
     cube_list = tuple(
         cubes
@@ -1324,32 +1428,51 @@ def build_logical_planes(
     ):
 
         # ====================================================
-        # 初始 Greedy
+        # Pairing Strategy
         # ====================================================
 
-        pairs = (
-            greedy_pair_routed_up_experts(
-                layer_id=layer_id,
-                profile=profile,
-            )
-        )
+        if (
+            pairing_mode
+            == PAIRING_MODE_SEQUENTIAL
+        ):
 
-        # ====================================================
-        # Local Search
-        # ====================================================
-
-        if improve_pairs:
-
+            # 不使用 Trace 参与决策：
+            # E0-E1, E2-E3, ...
             pairs = (
-                improve_routed_up_pairs(
+                sequential_pair_routed_up_experts(
                     layer_id=layer_id,
-                    pairs=pairs,
-                    profile=profile,
-                    max_rounds=(
-                        local_search_rounds
-                    ),
                 )
             )
+
+        else:
+
+            # ================================================
+            # Trace-aware Greedy
+            # ================================================
+
+            pairs = (
+                greedy_pair_routed_up_experts(
+                    layer_id=layer_id,
+                    profile=profile,
+                )
+            )
+
+            # ================================================
+            # Local Search
+            # ================================================
+
+            if improve_pairs:
+
+                pairs = (
+                    improve_routed_up_pairs(
+                        layer_id=layer_id,
+                        pairs=pairs,
+                        profile=profile,
+                        max_rounds=(
+                            local_search_rounds
+                        ),
+                    )
+                )
 
         # ====================================================
         # 记录 Cost
