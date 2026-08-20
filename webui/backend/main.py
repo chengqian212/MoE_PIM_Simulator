@@ -52,6 +52,8 @@ from webui.backend.schedule_api import router as schedule_router
 from webui.backend.token_schedule_api import router as token_schedule_router
 
 from webui.backend.workload_api import router as workload_router
+
+from webui.backend.request_api import router as request_router
 # ============================================================
 # 路径
 # ============================================================
@@ -70,6 +72,71 @@ DEFAULT_MAPPING_PATH = (
     / "mappings"
     / "mapping_baseline_N4_H7168_W4096.json"
 )
+
+
+DEFAULT_PHASE_SUMMARY_PATH = (
+    PROJECT_ROOT
+    / "results"
+    / "phase_evaluation_summary.json"
+)
+
+
+# ============================================================
+# Phase Evaluation Summary
+# ============================================================
+
+
+def load_phase_summary() -> dict[str, Any]:
+    """
+    读取 Prefill / Decode 正式阶段评估汇总。
+
+    这里每次请求都重新读取 JSON，便于重新运行评估后
+    WebUI 无需重启后端即可看到最新结果。
+    """
+
+    if not DEFAULT_PHASE_SUMMARY_PATH.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "找不到阶段评估文件："
+                f"{DEFAULT_PHASE_SUMMARY_PATH}"
+            ),
+        )
+
+    try:
+        with DEFAULT_PHASE_SUMMARY_PATH.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            raw = json.load(file)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="phase_evaluation_summary.json 不是合法 JSON。",
+        ) from exc
+
+    if not isinstance(raw, dict):
+        raise HTTPException(
+            status_code=500,
+            detail="阶段评估 JSON 最外层必须是 dict。",
+        )
+
+    prefill = raw.get("prefill")
+    decode = raw.get("decode")
+
+    if not isinstance(prefill, dict) or not isinstance(decode, dict):
+        raise HTTPException(
+            status_code=500,
+            detail="阶段评估 JSON 缺少 prefill 或 decode。",
+        )
+
+    # 不把 sources 中的本机绝对路径暴露给前端。
+    return {
+        "summary_version": raw.get("summary_version"),
+        "scope": raw.get("scope", ""),
+        "prefill": prefill,
+        "decode": decode,
+    }
 
 
 # ============================================================
@@ -151,6 +218,14 @@ class MappingDataError(
 
 app.include_router(
     workload_router
+)
+
+# ============================================================
+# Stage-aware Request API
+# ============================================================
+
+app.include_router(
+    request_router
 )
 # ============================================================
 # JSON Helper
@@ -1210,6 +1285,18 @@ def health() -> dict[str, Any]:
             store.mapping_path.name
         ),
     }
+
+
+# ============================================================
+# Prefill / Decode 正式阶段评估
+# ============================================================
+
+
+@app.get(
+    "/api/phase-summary"
+)
+def phase_summary() -> dict[str, Any]:
+    return load_phase_summary()
 
 
 # ============================================================

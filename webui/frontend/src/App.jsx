@@ -9,10 +9,18 @@ import GlobalCube3D
 import SubCubeViewer
   from "./components/SubCubeViewer";
 
-import TokenSimulator
-  from "./components/TokenSimulator";
+import RequestSimulator
+  from "./components/RequestSimulator";
 
-import WorkloadAnalyzer from "./components/WorkloadAnalyzer";
+import OverviewDashboard from "./components/OverviewDashboard";
+
+import MappingLocator from "./components/MappingLocator";
+
+import SchedulerVisualizer from "./components/SchedulerVisualizer";
+
+import ResultsAnalysis from "./components/ResultsAnalysis";
+
+import Experiments from "./components/Experiments";
   
 const API_BASE =
   "http://127.0.0.1:8000";
@@ -61,6 +69,12 @@ function App() {
 
 
   const [
+    phaseSummary,
+    setPhaseSummary,
+  ] = useState(null);
+
+
+  const [
     subcubes,
     setSubcubes,
   ] = useState([]);
@@ -77,7 +91,7 @@ function App() {
   const [
     activePage,
     setActivePage,
-  ] = useState("cube");
+  ] = useState("overview");
 
 
   // =========================================================
@@ -103,6 +117,16 @@ function App() {
   const [
     openedSubcube,
     setOpenedSubcube,
+  ] = useState(null);
+
+
+  // =========================================================
+  // Mapping 快速定位目标
+  // =========================================================
+
+  const [
+    mappingTarget,
+    setMappingTarget,
   ] = useState(null);
 
 
@@ -158,6 +182,28 @@ function App() {
 
 
         // ====================================================
+        // Prefill / Decode Phase Summary
+        // ====================================================
+
+        const phaseResponse =
+          await fetch(
+            `${API_BASE}/api/phase-summary`
+          );
+
+
+        if (!phaseResponse.ok) {
+
+          throw new Error(
+            "读取 Phase Summary 失败。"
+          );
+        }
+
+
+        const phaseData =
+          await phaseResponse.json();
+
+
+        // ====================================================
         // Sub-Cubes
         // ====================================================
 
@@ -184,6 +230,11 @@ function App() {
         );
 
 
+        setPhaseSummary(
+          phaseData
+        );
+
+
         setSubcubes(
           subcubeData.items ?? []
         );
@@ -200,7 +251,7 @@ function App() {
 
 
         setError(
-          "无法从 FastAPI 后端读取 Mapping 数据。"
+          "无法从 FastAPI 后端读取 Mapping 或阶段评估数据。"
         );
 
 
@@ -229,7 +280,7 @@ function App() {
         <div className="center-page">
 
           <div className="loading-card">
-            正在读取 MoE-PIM Mapping...
+            正在读取 MoE-PIM Mapping 与阶段评估结果...
           </div>
 
         </div>
@@ -327,6 +378,10 @@ function App() {
       setOpenedSubcube(
         null
       );
+
+      setMappingTarget(
+        null
+      );
     }
   }
 
@@ -347,6 +402,40 @@ function App() {
     setOpenedSubcube(
       subcubeId
     );
+
+    setMappingTarget(
+      null
+    );
+  }
+
+
+  // =========================================================
+  // Mapping 快速定位
+  // =========================================================
+
+  function locateWeight(
+    weight
+  ) {
+    if (!weight) {
+      return;
+    }
+
+    setSelectedSubcube(
+      weight.subcube_id
+    );
+
+    setMappingTarget({
+      cube_id:
+        weight.cube_id,
+      subcube_id:
+        weight.subcube_id,
+      z:
+        weight.z,
+    });
+
+    setOpenedSubcube(
+      weight.subcube_id
+    );
   }
 
 
@@ -357,6 +446,10 @@ function App() {
   function backToGlobalCube() {
 
     setOpenedSubcube(
+      null
+    );
+
+    setMappingTarget(
       null
     );
   }
@@ -392,7 +485,7 @@ function App() {
         <div className="mapping-info">
 
           <div>
-            Current Mapping
+            当前映射 / Current Mapping
           </div>
 
           <strong>
@@ -419,7 +512,7 @@ function App() {
 
 
         <StatCard
-          label="Sub-Cubes"
+          label="Sub-Cube 数"
           value={
             hardware.num_subcubes
           }
@@ -443,7 +536,7 @@ function App() {
 
 
         <StatCard
-          label="Depth D"
+          label="深度 D"
           value={
             hardware.D
           }
@@ -451,7 +544,7 @@ function App() {
 
 
         <StatCard
-          label="Used Planes"
+          label="已用 Plane"
           value={
             hardware.used_planes
           }
@@ -459,7 +552,7 @@ function App() {
 
 
         <StatCard
-          label="Total Planes"
+          label="总 Plane"
           value={
             hardware.total_plane_slots
           }
@@ -467,7 +560,7 @@ function App() {
 
 
         <StatCard
-          label="Empty Planes"
+          label="空 Plane"
           value={
             hardware.empty_plane_slots
           }
@@ -481,7 +574,8 @@ function App() {
       ====================================================== */}
       <main
         className={
-          activePage === "cube"
+          activePage === "cube" &&
+          openedSubcube === null
             ? "main-layout cube-layout"
             : "main-layout wide-layout"
         }
@@ -495,13 +589,30 @@ function App() {
         <aside className="sidebar">
 
           <div className="sidebar-title">
-            Visualization
+            功能导航 / Navigation
           </div>
 
 
           <NavButton
             number="01"
-            label="Cube 总览"
+            label="总览 / Overview"
+
+            active={
+              activePage ===
+              "overview"
+            }
+
+            onClick={() =>
+              switchPage(
+                "overview"
+              )
+            }
+          />
+
+
+          <NavButton
+            number="02"
+            label="映射空间 / Cube"
 
             active={
               activePage ===
@@ -517,8 +628,8 @@ function App() {
 
 
           <NavButton
-            number="02"
-            label="Token 模拟"
+            number="03"
+            label="请求模拟 / Request"
 
             active={
               activePage ===
@@ -534,8 +645,25 @@ function App() {
 
 
           <NavButton
-            number="03"
-            label="结果分析"
+            number="04"
+            label="调度可视化 / Scheduler"
+
+            active={
+              activePage ===
+              "scheduler"
+            }
+
+            onClick={() =>
+              switchPage(
+                "scheduler"
+              )
+            }
+          />
+
+
+          <NavButton
+            number="05"
+            label="结果分析 / Results"
 
             active={
               activePage ===
@@ -550,20 +678,37 @@ function App() {
           />
 
 
+          <NavButton
+            number="06"
+            label="实验配置 / Experiments"
+
+            active={
+              activePage ===
+              "experiments"
+            }
+
+            onClick={() =>
+              switchPage(
+                "experiments"
+              )
+            }
+          />
+
+
           <div className="sidebar-divider" />
 
 
           <div className="model-info">
 
             <div className="info-label">
-              Model
+              模型 / Model
             </div>
 
 
             <div>
 
               <span>
-                MoE Layers
+                MoE 层数
               </span>
 
               <strong>
@@ -578,7 +723,7 @@ function App() {
             <div>
 
               <span>
-                Weight-Cubes
+                Weight-Cube 数
               </span>
 
               <strong>
@@ -602,6 +747,25 @@ function App() {
 
 
           {/* =================================================
+              Overview
+          ================================================== */}
+
+          {activePage === "overview" && (
+
+            <OverviewDashboard
+              phaseSummary={
+                phaseSummary
+              }
+
+              hardware={
+                hardware
+              }
+            />
+
+          )}
+
+
+          {/* =================================================
               Cube 页面
           ================================================== */}
 
@@ -612,7 +776,7 @@ function App() {
               /*
               ----------------------------------------------
               第一层：
-              Global Cube
+              全局映射空间 / Global Cube
               ----------------------------------------------
               */
 
@@ -631,6 +795,10 @@ function App() {
 
                 setSelectedSubcube={
                   setSelectedSubcube
+                }
+
+                onLocateWeight={
+                  locateWeight
                 }
               />
 
@@ -652,6 +820,14 @@ function App() {
                   hardware
                 }
 
+                initialZ={
+                  mappingTarget?.z
+                }
+
+                focusCubeId={
+                  mappingTarget?.cube_id
+                }
+
                 onBack={
                   backToGlobalCube
                 }
@@ -668,7 +844,18 @@ function App() {
 
           {activePage === "token" && (
 
-            <TokenSimulator />
+            <RequestSimulator />
+
+          )}
+
+
+          {/* =================================================
+              Scheduler Visualizer
+          ================================================== */}
+
+          {activePage === "scheduler" && (
+
+            <SchedulerVisualizer />
 
           )}
 
@@ -678,7 +865,23 @@ function App() {
           ================================================== */}
 
           {activePage === "result" && (
-            <WorkloadAnalyzer />
+            <ResultsAnalysis
+              phaseSummary={phaseSummary}
+              hardware={hardware}
+            />
+          )}
+
+
+          {/* =================================================
+              Experiments
+          ================================================== */}
+
+          {activePage === "experiments" && (
+            <Experiments
+              phaseSummary={phaseSummary}
+              hardware={hardware}
+              mappingFile={summary?.mapping_file}
+            />
           )}
 
         </section>
@@ -687,7 +890,8 @@ function App() {
         {/* ===================================================
             最右侧 Panel
         ==================================================== */}
-{activePage === "cube" && (
+{activePage === "cube" &&
+ openedSubcube === null && (
         <aside className="right-panel">
 
           {selectedInfo === null ? (
@@ -742,7 +946,7 @@ function App() {
       <footer className="footer">
 
         <span>
-          Mapping Loaded
+          Mapping 已加载
         </span>
 
 
@@ -750,7 +954,7 @@ function App() {
 
           <span className="status-dot" />
 
-          Backend Connected
+          后端已连接 / Connected
 
         </span>
 
@@ -793,7 +997,17 @@ function NavButton({
         {number}
       </span>
 
-      {label}
+      <span className="nav-label">
+        <strong>
+          {label.split("/")[0]?.trim()}
+        </strong>
+
+        {label.includes("/") && (
+          <small>
+            {label.split("/").slice(1).join("/").trim()}
+          </small>
+        )}
+      </span>
 
     </button>
   );
@@ -813,6 +1027,8 @@ function CubePage({
   selectedSubcube,
 
   setSelectedSubcube,
+
+  onLocateWeight,
 }) {
 
   return (
@@ -823,12 +1039,11 @@ function CubePage({
         <div>
 
           <h2>
-            Global Cube
+            全局映射空间 / Global Cube
           </h2>
 
           <p>
-            点击一个 Sub-Cube，
-            再从右侧进入内部查看 Plane。
+            点击 Sub-Cube 查看概况，或使用下方定位器直接查找某个 Layer / Expert / Matrix。
           </p>
 
         </div>
@@ -848,19 +1063,30 @@ function CubePage({
                 )
               }
             >
-              Clear Selection
+              清除选择
             </button>
 
           )}
 
 
           <div className="view-tag">
-            3D GLOBAL VIEW
+            3D 全局视图
           </div>
 
         </div>
 
       </div>
+
+
+      <MappingLocator
+        layerCount={
+          hardware.layer_count
+        }
+
+        onLocate={
+          onLocateWeight
+        }
+      />
 
 
       <div className="cube-stage">
@@ -891,12 +1117,12 @@ function CubePage({
             }
           </strong>
 
-          {" "}Sub-Cubes
+          {" "}个 Sub-Cube
         </div>
 
 
         <div>
-          Physical Depth：
+          物理深度 D：
           <strong>
             {hardware.D}
           </strong>
@@ -904,7 +1130,7 @@ function CubePage({
 
 
         <div>
-          Plane Size：
+          Plane 尺寸：
           <strong>
             {hardware.H}
             ×
@@ -914,9 +1140,7 @@ function CubePage({
 
 
         <div className="mouse-hint">
-          Drag 旋转 ·
-          Wheel 缩放 ·
-          Click 选择
+          拖拽旋转 · 滚轮缩放 · 单击选择
         </div>
 
       </div>
@@ -939,12 +1163,12 @@ function HardwarePanel({
     <>
 
       <div className="panel-title">
-        Hardware
+        硬件信息 / Hardware
       </div>
 
 
       <InfoRow
-        label="Topology"
+        label="拓扑 / Topology"
 
         value={
           hardware.N
@@ -957,7 +1181,7 @@ function HardwarePanel({
 
 
       <InfoRow
-        label="Sub-Cubes"
+        label="Sub-Cube 数"
         value={
           hardware.num_subcubes
         }
@@ -965,7 +1189,7 @@ function HardwarePanel({
 
 
       <InfoRow
-        label="Plane Size"
+        label="Plane 尺寸"
 
         value={
           hardware.H &&
@@ -979,7 +1203,7 @@ function HardwarePanel({
 
 
       <InfoRow
-        label="Depth D"
+        label="深度 D"
         value={
           hardware.D
         }
@@ -990,12 +1214,12 @@ function HardwarePanel({
 
 
       <div className="panel-title">
-        Storage
+        存储空间 / Storage
       </div>
 
 
       <InfoRow
-        label="Used Planes"
+        label="已用 Plane"
         value={
           hardware.used_planes
         }
@@ -1003,7 +1227,7 @@ function HardwarePanel({
 
 
       <InfoRow
-        label="Total Planes"
+        label="总 Plane"
         value={
           hardware.total_plane_slots
         }
@@ -1011,7 +1235,7 @@ function HardwarePanel({
 
 
       <InfoRow
-        label="Empty"
+        label="空 Plane"
         value={
           hardware.empty_plane_slots
         }
@@ -1019,8 +1243,7 @@ function HardwarePanel({
 
 
       <div className="panel-help">
-        点击中央任意 Sub-Cube，
-        右侧会显示该 SC 的详细信息。
+        点击中央任意 Sub-Cube，右侧会显示该 SC 的空间占用和矩阵统计。
       </div>
 
     </>
@@ -1055,7 +1278,7 @@ function SelectedSubcubePanel({
         <div>
 
           <div className="selected-small-title">
-            SELECTED
+            已选择 / SELECTED
           </div>
 
           <h3>
@@ -1081,7 +1304,7 @@ function SelectedSubcubePanel({
 
 
       <InfoRow
-        label="Used Planes"
+        label="已用 Plane"
         value={
           info.used_planes
         }
@@ -1089,7 +1312,7 @@ function SelectedSubcubePanel({
 
 
       <InfoRow
-        label="Depth"
+        label="深度容量"
         value={
           info.depth_capacity
         }
@@ -1097,7 +1320,7 @@ function SelectedSubcubePanel({
 
 
       <InfoRow
-        label="Empty Planes"
+        label="空 Plane"
         value={
           info.empty_planes
         }
@@ -1105,7 +1328,7 @@ function SelectedSubcubePanel({
 
 
       <InfoRow
-        label="Weight-Cubes"
+        label="Weight-Cube 数"
         value={
           info.weight_cube_count
         }
@@ -1113,7 +1336,7 @@ function SelectedSubcubePanel({
 
 
       <InfoRow
-        label="Shared Weight"
+        label="Shared 权重"
         value={
           info.shared_weight_count
         }
@@ -1124,7 +1347,7 @@ function SelectedSubcubePanel({
 
 
       <div className="panel-title">
-        Matrix Type
+        矩阵类型 / Matrix
       </div>
 
 
@@ -1167,7 +1390,7 @@ function SelectedSubcubePanel({
             onOpen
           }
         >
-          Open Sub-Cube
+          进入 Sub-Cube
         </button>
 
       )}
@@ -1176,7 +1399,7 @@ function SelectedSubcubePanel({
       {opened && (
 
         <div className="opened-state">
-          Viewing SC-{info.subcube_id}
+          正在查看 SC-{info.subcube_id}
         </div>
 
       )}
@@ -1186,10 +1409,10 @@ function SelectedSubcubePanel({
 
         {opened
           ? (
-              "当前已经进入该 Sub-Cube，可以通过中间的 z Slider 查看 Physical Plane。"
+              "当前已经进入该 Sub-Cube，可以使用 z 滑块查看不同物理 Plane。"
             )
           : (
-              "点击 Open Sub-Cube 后进入该 SC 内部。"
+              "点击进入 Sub-Cube，可查看具体 Plane 和 Weight-Cube。"
             )
         }
 
@@ -1293,9 +1516,9 @@ function Style() {
             Arial,
             sans-serif;
 
-          color: #1f2937;
+          color: #17263a;
 
-          background: #f5f7fa;
+          background: #edf3f8;
         }
 
 
@@ -1324,9 +1547,9 @@ function Style() {
 
 
         .top-header {
-          height: 64px;
+          height: 76px;
 
-          padding: 0 20px;
+          padding: 0 22px;
 
           display: flex;
 
@@ -1339,36 +1562,47 @@ function Style() {
             #ffffff;
 
           border-bottom:
-            1px solid #e5e7eb;
+            1px solid #cbd5e1;
+
+          box-shadow:
+            inset 0 4px 0 #4F7195;
         }
 
 
         .top-header h1 {
           margin: 0;
 
-          font-size: 26px;
+          font-size: 32px;
 
-          font-weight: 650;
+          font-weight: 700;
         }
 
 
         .subtitle {
           margin-top: 6px;
 
-          color: #8a94a3;
+          color: #526579;
 
-          font-size: 15px;
+          font-size: 17px;
         }
 
 
         .mapping-info {
-          max-width: 430px;
+          max-width: 470px;
+
+          padding: 7px 10px;
 
           text-align: right;
 
-          color: #8a94a3;
+          color: #7f8b98;
 
-          font-size: 14px;
+          font-size: 16px;
+
+          border: 1px solid #e2e7ec;
+
+          border-radius: 5px;
+
+          background: #fafbfd;
         }
 
 
@@ -1377,9 +1611,9 @@ function Style() {
 
           margin-top: 5px;
 
-          color: #374151;
+          color: #102a43;
 
-          font-size: 15px;
+          font-size: 17px;
 
           font-weight: 500;
         }
@@ -1391,9 +1625,9 @@ function Style() {
 
 
         .stats-bar {
-          min-height: 70px;
+          min-height: 82px;
 
-          padding: 10px 20px;
+          padding: 9px 22px;
 
           display: grid;
 
@@ -1406,28 +1640,31 @@ function Style() {
               )
             );
 
-          gap: 10px;
+          gap: 12px;
 
           background:
             #ffffff;
 
           border-bottom:
-            1px solid #e5e7eb;
+            1px solid #cbd5e1;
         }
 
 
         .stat-card {
           padding:
-            11px 13px;
+            10px 13px;
 
           background:
-            #fafbfc;
+            #ffffff;
 
           border:
-            1px solid #e5e7eb;
+            1px solid #cbd5e1;
+
+          border-left:
+            4px solid #3b82f6;
 
           border-radius:
-            6px;
+            5px;
         }
 
 
@@ -1436,19 +1673,19 @@ function Style() {
             7px;
 
           color:
-            #8a94a3;
+            #526579;
 
           font-size:
-            14px;
+            16px;
         }
 
 
         .stat-value {
           color:
-            #252d38;
+            #0f2744;
 
           font-size:
-            20px;
+            26px;
 
           font-weight:
             650;
@@ -1475,9 +1712,9 @@ function Style() {
 
         .main-layout.cube-layout {
           grid-template-columns:
-            200px
+            270px
             minmax(0, 1fr)
-            280px;
+            300px;
         }
 
 
@@ -1485,7 +1722,7 @@ function Style() {
 
         .main-layout.wide-layout {
           grid-template-columns:
-            200px
+            270px
             minmax(0, 1fr);
         }
 
@@ -1496,28 +1733,28 @@ function Style() {
 
 
         .sidebar {
-          padding: 14px 12px;
+          padding: 16px 14px;
 
           background:
-            #ffffff;
+            #f8fafc;
 
           border-right:
-            1px solid #e5e7eb;
+            1px solid #cbd5e1;
         }
 
 
         .sidebar-title {
           margin:
-            0 9px 14px;
+            0 10px 12px;
 
           color:
-            #9aa3af;
+            #244a6b;
 
           font-size:
-            13px;
+            16px;
 
           font-weight:
-            600;
+            650;
 
           letter-spacing:
             1.3px;
@@ -1530,13 +1767,13 @@ function Style() {
         .nav-button {
           width: 100%;
 
-          height: 44px;
+          min-height: 56px;
 
           margin-bottom:
-            5px;
+            6px;
 
           padding:
-            0 11px;
+            7px 12px;
 
           display: flex;
 
@@ -1555,10 +1792,10 @@ function Style() {
             transparent;
 
           color:
-            #606b79;
+            #536171;
 
           font-size:
-            15px;
+            16px;
 
           cursor:
             pointer;
@@ -1570,30 +1807,85 @@ function Style() {
 
         .nav-button:hover {
           background:
-            #f3f5f7;
+            #e8f1fb;
+
+          color:
+            #174a78;
         }
 
 
         .nav-button.active {
           background:
-            #edf3fb;
+            #dbeafe;
 
           color:
-            #234b7a;
+            #123f70;
 
           font-weight:
-            600;
+            650;
+
+          box-shadow:
+            inset 5px 0 0 #4F7195;
         }
 
 
         .nav-number {
-          width: 20px;
+          width: 32px;
+          min-width: 32px;
 
           color:
-            #a4acb6;
+            #526579;
 
           font-size:
-            13px;
+            15px;
+
+          font-weight:
+            700;
+
+          font-variant-numeric:
+            tabular-nums;
+        }
+
+
+        .nav-label {
+          min-width: 0;
+
+          display: flex;
+
+          flex-direction: column;
+
+          justify-content: center;
+
+          gap: 2px;
+
+          line-height: 1.18;
+        }
+
+
+        .nav-label strong {
+          color: inherit;
+
+          font-size: 18px;
+
+          font-weight: 650;
+
+          white-space: nowrap;
+        }
+
+
+        .nav-label small {
+          color: #64748b;
+
+          font-size: 15px;
+
+          font-weight: 500;
+
+          white-space: nowrap;
+        }
+
+
+        .nav-button.active .nav-label small {
+          color: #315b85;
         }
 
 
@@ -1601,7 +1893,7 @@ function Style() {
           height: 1px;
 
           margin:
-            23px 8px;
+            18px 8px;
 
           background:
             #eceff2;
@@ -1610,13 +1902,13 @@ function Style() {
 
         .model-info {
           padding:
-            0 9px;
+            0 10px;
 
           color:
-            #7b8490;
+            #687583;
 
           font-size:
-            14px;
+            15px;
         }
 
 
@@ -1628,10 +1920,10 @@ function Style() {
             #a0a8b2;
 
           font-size:
-            13px;
+            14px;
 
           letter-spacing:
-            1px;
+            0.8px;
 
           text-transform:
             uppercase;
@@ -1662,9 +1954,9 @@ function Style() {
 
           overflow-x: hidden;
 
-          padding: 16px;
+          padding: 14px 16px 16px;
 
-          background: #f6f8fa;
+          background: #edf3f8;
         }
 
 
@@ -1686,10 +1978,10 @@ function Style() {
             0 0 5px;
 
           font-size:
-            20px;
+            26px;
 
           font-weight:
-            650;
+            700;
         }
 
 
@@ -1697,10 +1989,10 @@ function Style() {
           margin: 0;
 
           color:
-            #87919e;
+            #5f7083;
 
           font-size:
-            14px;
+            15px;
         }
 
 
@@ -1720,7 +2012,7 @@ function Style() {
             5px 8px;
 
           border:
-            1px solid #dbe2ea;
+            1px solid #9fb3c8;
 
           border-radius:
             4px;
@@ -1729,19 +2021,19 @@ function Style() {
             #ffffff;
 
           color:
-            #8b95a1;
+            #49627b;
 
           font-size:
-            12px;
+            13px;
 
           letter-spacing:
-            1px;
+            0.7px;
         }
 
 
         .reset-button {
           height:
-            27px;
+            32px;
 
           padding:
             0 9px;
@@ -1759,7 +2051,7 @@ function Style() {
             #687381;
 
           font-size:
-            13px;
+            14px;
 
           cursor:
             pointer;
@@ -1779,7 +2071,7 @@ function Style() {
           overflow: hidden;
 
           border:
-            1px solid #dfe4ea;
+            1px solid #c3d0dc;
 
           border-radius:
             7px;
@@ -1790,7 +2082,7 @@ function Style() {
 
 
         .cube-bottom-bar {
-          height: 32px;
+          min-height: 38px;
 
           margin-top:
             8px;
@@ -1816,10 +2108,10 @@ function Style() {
             #ffffff;
 
           color:
-            #7f8996;
+            #526579;
 
           font-size:
-            13px;
+            14px;
         }
 
 
@@ -1834,7 +2126,7 @@ function Style() {
             auto;
 
           color:
-            #a0a8b1;
+            #64748b;
         }
 
 
@@ -1844,13 +2136,13 @@ function Style() {
 
 
         .right-panel {
-          padding: 16px 14px;
+          padding: 16px;
 
           background:
             #ffffff;
 
           border-left:
-            1px solid #e5e7eb;
+            1px solid #cbd5e1;
         }
 
 
@@ -1859,16 +2151,16 @@ function Style() {
             13px;
 
           color:
-            #89929f;
+            #244a6b;
 
           font-size:
-            13px;
+            15px;
 
           font-weight:
-            600;
+            650;
 
           letter-spacing:
-            1px;
+            0.8px;
 
           text-transform:
             uppercase;
@@ -1890,16 +2182,16 @@ function Style() {
             1px solid #f0f1f3;
 
           color:
-            #828b97;
+            #526579;
 
           font-size:
-            14px;
+            15px;
         }
 
 
         .info-row strong {
           color:
-            #364152;
+            #17263a;
 
           font-weight:
             600;
@@ -1921,13 +2213,13 @@ function Style() {
           margin-top: 12px;
 
           color:
-            #a0a8b1;
+            #64748b;
 
           font-size:
-            13px;
+            14px;
 
           line-height:
-            1.7;
+            1.65;
         }
 
 
@@ -1975,14 +2267,14 @@ function Style() {
             #2f3a46;
 
           font-size:
-            19px;
+            20px;
         }
 
 
         .close-button {
-          width: 26px;
+          width: 30px;
 
-          height: 26px;
+          height: 30px;
 
           border:
             1px solid #dfe4e8;
@@ -2004,18 +2296,18 @@ function Style() {
         .open-subcube-button {
           width: 100%;
 
-          height: 36px;
+          height: 40px;
 
           margin-top: 14px;
 
           border:
-            1px solid #6e8ead;
+            1px solid #1d4f8a;
 
           border-radius:
             5px;
 
           background:
-            #7799bb;
+            #2563a8;
 
           color:
             #ffffff;
@@ -2033,7 +2325,7 @@ function Style() {
 
         .open-subcube-button:hover {
           background:
-            #6789ab;
+            #1d4f8a;
         }
 
 
@@ -2081,7 +2373,7 @@ function Style() {
             center;
 
           border:
-            1px solid #dfe4ea;
+            1px solid #c3d0dc;
 
           border-radius:
             7px;
@@ -2120,7 +2412,7 @@ function Style() {
             #84909d;
 
           font-size:
-            22px;
+            26px;
         }
 
 
@@ -2153,10 +2445,10 @@ function Style() {
 
 
         .footer {
-          height: 30px;
+          height: 32px;
 
           padding:
-            0 20px;
+            0 22px;
 
           display: flex;
 
@@ -2232,7 +2524,7 @@ function Style() {
             26px 30px;
 
           border:
-            1px solid #dfe4ea;
+            1px solid #c3d0dc;
 
           border-radius:
             7px;
@@ -2266,6 +2558,110 @@ function Style() {
 
           background:
             #f3f4f6;
+        }
+
+
+        /* ================================================
+           GLOBAL READABILITY + EMPHASIS
+           统一提升 01–06 页面可读性与重点层级
+        ================================================ */
+
+        .workspace h2 {
+          color: #102a43 !important;
+          font-size: 26px !important;
+          font-weight: 750 !important;
+        }
+
+        .workspace h3 {
+          color: #173b5f !important;
+          font-size: 20px !important;
+          font-weight: 700 !important;
+        }
+
+        .workspace p,
+        .workspace label {
+          color: #526579;
+          font-size: 16px !important;
+          line-height: 1.55;
+        }
+
+        .workspace button,
+        .workspace input,
+        .workspace select {
+          min-height: 36px;
+          font-size: 16px !important;
+        }
+
+        .workspace input,
+        .workspace select {
+          border-color: #9fb3c8 !important;
+          color: #17263a !important;
+          background: #ffffff !important;
+        }
+
+        .workspace small {
+          font-size: 14px !important;
+        }
+
+        .workload-small-title,
+        .overview-small-title,
+        .request-small-title,
+        .scheduler-small-title,
+        .results-small-title,
+        .experiments-small-title,
+        .detail-small,
+        .selected-small-title {
+          color: #405a73 !important;
+          font-size: 15px !important;
+          font-weight: 750 !important;
+        }
+
+        .panel-title,
+        .weight-panel-title,
+        .depth-title {
+          color: #1f4f78 !important;
+          font-size: 16px !important;
+          font-weight: 750 !important;
+        }
+
+        .info-row {
+          min-height: 36px;
+          font-size: 16px !important;
+        }
+
+        .info-row strong {
+          color: #102a43;
+          font-size: 17px;
+        }
+
+        .scope-badge,
+        .view-tag,
+        .subcube-tag {
+          border-color: #7aa7d2 !important;
+          background: #e6f1fb !important;
+          color: #174f7d !important;
+          font-weight: 750 !important;
+        }
+
+
+        @media (max-width: 1320px) {
+          .main-layout.cube-layout {
+            grid-template-columns:
+              250px
+              minmax(0, 1fr)
+              286px;
+          }
+
+          .main-layout.wide-layout {
+            grid-template-columns:
+              250px
+              minmax(0, 1fr);
+          }
+
+          .nav-button {
+            padding-left: 10px;
+            padding-right: 10px;
+          }
         }
 
       `}

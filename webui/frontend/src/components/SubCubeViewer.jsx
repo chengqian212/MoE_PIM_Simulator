@@ -84,6 +84,25 @@ function normalizeMatrixName(
 }
 
 
+function displayMatrixName(matrixName) {
+  const type = normalizeMatrixName(matrixName);
+
+  if (type === "gate") {
+    return "Gate / 门控";
+  }
+
+  if (type === "up") {
+    return "Up / 上投影";
+  }
+
+  if (type === "down") {
+    return "Down / 下投影";
+  }
+
+  return type;
+}
+
+
 // ============================================================
 // 矩阵显示样式
 // ============================================================
@@ -111,37 +130,37 @@ function matrixStyle(
 
   if (type === "gate") {
     background =
-      "#dceaf7";
+      "#cfe8ff";
 
     border =
-      "#7fa7cb";
+      "#4f8fc9";
 
     text =
-      "#315d86";
+      "#174f7d";
   }
 
 
   if (type === "up") {
     background =
-      "#f7e8d7";
+      "#ffedd5";
 
     border =
-      "#cf9f68";
+      "#d68a32";
 
     text =
-      "#855d32";
+      "#7c4a0b";
   }
 
 
   if (type === "down") {
     background =
-      "#dfeee4";
+      "#dcfce7";
 
     border =
-      "#80aa8e";
+      "#4d9c68";
 
     text =
-      "#386746";
+      "#245d38";
   }
 
 
@@ -300,7 +319,7 @@ function WeightBlock({
 
 
       <div className="weight-matrix">
-        {matrixName}
+        {displayMatrixName(matrixName)}
       </div>
 
 
@@ -319,7 +338,7 @@ function WeightBlock({
 
       {weight.is_shared && (
         <div className="shared-tag">
-          Shared
+          共享 / Shared
         </div>
       )}
     </button>
@@ -372,7 +391,7 @@ function PhysicalPlane({
         {weights.length === 0 ? (
 
           <div className="empty-plane">
-            Empty Physical Plane
+            空物理 Plane / Empty Plane
           </div>
 
         ) : (
@@ -434,8 +453,7 @@ function WeightDetail({
   if (!weight) {
     return (
       <div className="weight-detail-empty">
-        点击 Plane 中的 Weight-Cube
-        查看详细映射信息。
+        点击左侧 Plane 中的 Weight-Cube，查看该权重块的详细映射信息。
       </div>
     );
   }
@@ -447,7 +465,7 @@ function WeightDetail({
       <div className="detail-header">
         <div>
           <div className="detail-small">
-            WEIGHT-CUBE
+            WEIGHT-CUBE / 权重块
           </div>
 
           <h3>
@@ -465,15 +483,15 @@ function WeightDetail({
         >
           {
             weight.is_shared
-              ? "Shared"
-              : "Routed"
+              ? "共享 / Shared"
+              : "路由 / Routed"
           }
         </div>
       </div>
 
 
       <DetailRow
-        label="Model Layer"
+        label="模型层 / Layer"
         value={
           weight.layer_id
         }
@@ -481,7 +499,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Expert"
+        label="专家 / Expert"
         value={
           weight.expert_id
         }
@@ -489,9 +507,9 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Matrix"
+        label="矩阵 / Matrix"
         value={
-          normalizeMatrixName(
+          displayMatrixName(
             weight.matrix_name
           )
         }
@@ -502,7 +520,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Logical Plane"
+        label="逻辑 Plane"
         value={
           weight.logical_plane_id
         }
@@ -510,7 +528,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Physical Plane"
+        label="物理 Plane"
         value={
           weight.physical_plane_id
         }
@@ -518,7 +536,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Slot ID"
+        label="槽位 ID / Slot"
         value={
           weight.slot_id
         }
@@ -526,7 +544,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Sub-Cube"
+        label="Sub-Cube / 子立方"
         value={
           weight.subcube_id
         }
@@ -534,7 +552,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="z"
+        label="深度 z"
         value={
           weight.z
         }
@@ -545,7 +563,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Position"
+        label="坐标 / Position"
         value={
           `(${weight.x}, ${weight.y})`
         }
@@ -553,7 +571,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Logical Size"
+        label="逻辑尺寸"
         value={
           `${weight.logical_rows} × ${weight.logical_cols}`
         }
@@ -561,7 +579,7 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Physical Size"
+        label="物理尺寸"
         value={
           `${weight.slot_rows} × ${weight.slot_cols}`
         }
@@ -569,11 +587,11 @@ function WeightDetail({
 
 
       <DetailRow
-        label="Rotated"
+        label="旋转 / Rotated"
         value={
           weight.rotated
-            ? "Yes"
-            : "No"
+            ? "是 / Yes"
+            : "否 / No"
         }
       />
 
@@ -619,25 +637,25 @@ function Legend() {
 
       <LegendItem
         className="legend-gate"
-        label="gate"
+        label="Gate / 门控"
       />
 
 
       <LegendItem
         className="legend-up"
-        label="up"
+        label="Up / 上投影"
       />
 
 
       <LegendItem
         className="legend-down"
-        label="down"
+        label="Down / 下投影"
       />
 
 
       <LegendItem
         className="legend-shared"
-        label="Shared Expert"
+        label="Shared Expert / 共享专家"
       />
 
     </div>
@@ -675,6 +693,10 @@ function SubCubeViewer({
 
   hardware,
 
+  initialZ,
+
+  focusCubeId,
+
   onBack,
 }) {
   const H =
@@ -696,7 +718,11 @@ function SubCubeViewer({
   const [
     z,
     setZ,
-  ] = useState(0);
+  ] = useState(
+    Number.isFinite(Number(initialZ))
+      ? Number(initialZ)
+      : 0
+  );
 
 
   // =========================================================
@@ -742,7 +768,11 @@ function SubCubeViewer({
   const [
     zInput,
     setZInput,
-  ] = useState("0");
+  ] = useState(
+    Number.isFinite(Number(initialZ))
+      ? String(initialZ)
+      : "0"
+  );
 
 
   // =========================================================
@@ -750,15 +780,24 @@ function SubCubeViewer({
   // =========================================================
 
   useEffect(() => {
-    setZ(0);
+    const targetZ =
+      Number.isFinite(Number(initialZ))
+        ? Math.max(
+            0,
+            Math.min(
+              D - 1,
+              Number(initialZ)
+            )
+          )
+        : 0;
 
-    setZInput("0");
-
-    setSelectedWeight(
-      null
-    );
+    setZ(targetZ);
+    setZInput(String(targetZ));
+    setSelectedWeight(null);
   }, [
-    subcubeId
+    subcubeId,
+    initialZ,
+    D,
   ]);
 
 
@@ -815,8 +854,19 @@ function SubCubeViewer({
         );
 
 
+        const focusedWeight =
+          focusCubeId === undefined ||
+          focusCubeId === null
+            ? null
+            : (data.weights ?? []).find(
+                (weight) =>
+                  weight.cube_id ===
+                  focusCubeId
+              ) ?? null;
+
+
         setSelectedWeight(
-          null
+          focusedWeight
         );
 
       } catch (err) {
@@ -858,6 +908,7 @@ function SubCubeViewer({
   }, [
     subcubeId,
     z,
+    focusCubeId,
   ]);
 
 
@@ -985,18 +1036,17 @@ function SubCubeViewer({
               onBack
             }
           >
-            ← Global Cube
+            ← 返回全局 Cube
           </button>
 
 
           <div>
             <h2>
-              Sub-Cube {subcubeId}
+              Sub-Cube {subcubeId} / 子立方
             </h2>
 
             <p>
-              查看该 Sub-Cube
-              中不同深度的 Physical Plane。
+              查看该 Sub-Cube 不同深度上的物理 Plane 与 Weight-Cube 映射。
             </p>
           </div>
 
@@ -1017,7 +1067,7 @@ function SubCubeViewer({
       <div className="depth-controller">
 
         <div className="depth-title">
-          Physical Plane
+          物理 Plane / Physical Plane
         </div>
 
 
@@ -1123,16 +1173,30 @@ function SubCubeViewer({
         <div className="depth-state">
 
           {loading ? (
-            "Loading..."
+            "加载中..."
           ) : (
             plane?.empty
-              ? "Empty Plane"
-              : `${planeStats.weightCount} Weight-Cubes`
+              ? "空 Plane"
+              : `${planeStats.weightCount} 个 Weight-Cube`
           )}
 
         </div>
 
       </div>
+
+
+      {focusCubeId !== undefined &&
+       focusCubeId !== null && (
+        <div className="mapping-focus-banner">
+          <strong>已自动定位：</strong>
+          Cube-{focusCubeId}
+          {" · "}
+          SC-{subcubeId}
+          {" · "}
+          z={z}
+          <span>目标 Weight-Cube 已在下方 Plane 中高亮。</span>
+        </div>
+      )}
 
 
       {/* =====================================================
@@ -1157,7 +1221,7 @@ function SubCubeViewer({
               </div>
 
               <div className="plane-subtitle">
-                Physical Plane
+                物理 Plane / Physical Plane
                 {" · "}
                 {H} × {W}
               </div>
@@ -1167,7 +1231,7 @@ function SubCubeViewer({
             <div className="plane-stats">
 
               <span>
-                Gate
+                Gate / 门控
                 <strong>
                   {
                     planeStats
@@ -1178,7 +1242,7 @@ function SubCubeViewer({
 
 
               <span>
-                Up
+                Up / 上投影
                 <strong>
                   {
                     planeStats
@@ -1189,7 +1253,7 @@ function SubCubeViewer({
 
 
               <span>
-                Down
+                Down / 下投影
                 <strong>
                   {
                     planeStats
@@ -1248,7 +1312,7 @@ function SubCubeViewer({
         <div className="weight-panel">
 
           <div className="weight-panel-title">
-            Weight Information
+            权重信息 / Weight Info
           </div>
 
 
@@ -1303,7 +1367,7 @@ function Style() {
           align-items: flex-start;
           justify-content: space-between;
 
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
 
 
@@ -1326,7 +1390,8 @@ function Style() {
 
           color: #657181;
 
-          font-size: 13px;
+          font-size: 16px;
+          font-weight: 700;
 
           cursor: pointer;
         }
@@ -1342,17 +1407,18 @@ function Style() {
 
           color: #2f3945;
 
-          font-size: 20px;
-          font-weight: 650;
+          font-size: 24px;
+          font-weight: 700;
         }
 
 
         .subcube-header p {
           margin: 0;
 
-          color: #8d96a1;
+          color: #5f7083;
 
-          font-size: 14px;
+          font-size: 15px;
+          line-height: 1.55;
         }
 
 
@@ -1366,8 +1432,8 @@ function Style() {
 
           color: #59738e;
 
-          font-size: 13px;
-          font-weight: 650;
+          font-size: 15px;
+          font-weight: 700;
         }
 
 
@@ -1377,9 +1443,9 @@ function Style() {
 
 
         .depth-controller {
-          min-height: 44px;
+          min-height: 52px;
 
-          padding: 6px 10px;
+          padding: 8px 12px;
 
           display: flex;
           align-items: center;
@@ -1390,17 +1456,17 @@ function Style() {
 
           background: #ffffff;
 
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
 
 
         .depth-title {
           margin-right: 7px;
 
-          color: #89929e;
+          color: #405a73;
 
-          font-size: 13px;
-          font-weight: 600;
+          font-size: 15px;
+          font-weight: 700;
 
           text-transform: uppercase;
           letter-spacing: 0.7px;
@@ -1408,8 +1474,8 @@ function Style() {
 
 
         .depth-button {
-          width: 29px;
-          height: 29px;
+          width: 34px;
+          height: 34px;
 
           border: 1px solid #d9dfe6;
           border-radius: 4px;
@@ -1432,9 +1498,9 @@ function Style() {
 
 
         .z-box {
-          height: 29px;
+          height: 34px;
 
-          padding: 0 8px;
+          padding: 0 10px;
 
           display: flex;
           align-items: center;
@@ -1442,14 +1508,14 @@ function Style() {
           border: 1px solid #d9dfe6;
           border-radius: 4px;
 
-          color: #6e7884;
+          color: #526579;
 
-          font-size: 13px;
+          font-size: 15px;
         }
 
 
         .z-box input {
-          width: 48px;
+          width: 56px;
 
           margin: 0 4px;
 
@@ -1460,8 +1526,8 @@ function Style() {
 
           color: #344152;
 
-          font-size: 14px;
-          font-weight: 650;
+          font-size: 16px;
+          font-weight: 700;
 
           background: transparent;
         }
@@ -1477,13 +1543,40 @@ function Style() {
 
 
         .depth-state {
-          min-width: 100px;
+          min-width: 135px;
 
           text-align: right;
 
-          color: #7c8794;
+          color: #526579;
 
-          font-size: 13px;
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+
+        .mapping-focus-banner {
+          min-height: 38px;
+          margin-bottom: 10px;
+          padding: 7px 11px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid #b9cede;
+          border-radius: 6px;
+          background: #eef6fb;
+          color: #496a86;
+          font-size: 16px;
+        }
+
+        .mapping-focus-banner strong {
+          color: #355b79;
+          font-size: 15px;
+        }
+
+        .mapping-focus-banner span {
+          margin-left: auto;
+          color: #6f879b;
+          font-size: 15px;
         }
 
 
@@ -1493,15 +1586,15 @@ function Style() {
 
 
         .subcube-main {
-          min-height: 440px;
+          min-height: 500px;
 
           display: grid;
 
           grid-template-columns:
-            minmax(500px, 1fr)
-            230px;
+            minmax(560px, 1fr)
+            300px;
 
-          gap: 12px;
+          gap: 10px;
         }
 
 
@@ -1511,7 +1604,7 @@ function Style() {
 
 
         .plane-panel {
-          padding: 12px;
+          padding: 14px;
 
           border: 1px solid #dfe4ea;
           border-radius: 7px;
@@ -1535,17 +1628,17 @@ function Style() {
         .plane-title {
           color: #34404d;
 
-          font-size: 15px;
-          font-weight: 650;
+          font-size: 18px;
+          font-weight: 700;
         }
 
 
         .plane-subtitle {
           margin-top: 4px;
 
-          color: #979faa;
+          color: #64748b;
 
-          font-size: 13px;
+          font-size: 16px;
         }
 
 
@@ -1554,9 +1647,9 @@ function Style() {
 
           gap: 15px;
 
-          color: #8a939e;
+          color: #526579;
 
-          font-size: 13px;
+          font-size: 16px;
         }
 
 
@@ -1581,8 +1674,8 @@ function Style() {
           position: relative;
 
           width: min(
-            420px,
-            75%
+            540px,
+            92%
           );
 
           /*
@@ -1601,7 +1694,7 @@ function Style() {
             4096 / 7168;
 
           margin:
-            25px auto 15px;
+            28px auto 10px;
         }
 
 
@@ -1634,9 +1727,10 @@ function Style() {
           transform:
             translateX(-50%);
 
-          color: #8a939e;
+          color: #526579;
 
-          font-size: 12px;
+          font-size: 16px;
+          font-weight: 600;
         }
 
 
@@ -1651,9 +1745,10 @@ function Style() {
             translateY(-50%)
             rotate(-90deg);
 
-          color: #8a939e;
+          color: #526579;
 
-          font-size: 12px;
+          font-size: 16px;
+          font-weight: 600;
         }
 
 
@@ -1665,9 +1760,9 @@ function Style() {
 
           margin-top: 4px;
 
-          color: #a0a7b0;
+          color: #64748b;
 
-          font-size: 12px;
+          font-size: 15px;
         }
 
 
@@ -1679,7 +1774,7 @@ function Style() {
         .weight-block {
           position: absolute;
 
-          padding: 9px;
+          padding: 10px;
 
           overflow: hidden;
 
@@ -1722,7 +1817,7 @@ function Style() {
         .weight-title {
           color: inherit;
 
-          font-size: 14px;
+          font-size: 16px;
           font-weight: 700;
         }
 
@@ -1730,8 +1825,8 @@ function Style() {
         .weight-matrix {
           margin-top: 5px;
 
-          font-size: 15px;
-          font-weight: 600;
+          font-size: 16px;
+          font-weight: 700;
 
           text-transform: uppercase;
         }
@@ -1740,9 +1835,10 @@ function Style() {
         .weight-size {
           margin-top: 5px;
 
-          opacity: 0.72;
+          opacity: 0.78;
 
-          font-size: 12px;
+          font-size: 16px;
+          font-weight: 600;
         }
 
 
@@ -1758,8 +1854,8 @@ function Style() {
 
           color: #745c9d;
 
-          font-size: 12px;
-          font-weight: 650;
+          font-size: 15px;
+          font-weight: 700;
         }
 
 
@@ -1773,7 +1869,8 @@ function Style() {
 
           color: #acb2ba;
 
-          font-size: 14px;
+          font-size: 16px;
+          font-weight: 600;
         }
 
 
@@ -1786,7 +1883,7 @@ function Style() {
 
           color: #a75d5d;
 
-          font-size: 14px;
+          font-size: 16px;
         }
 
 
@@ -1808,7 +1905,8 @@ function Style() {
 
           color: #7d8792;
 
-          font-size: 12px;
+          font-size: 16px;
+          font-weight: 600;
         }
 
 
@@ -1821,8 +1919,8 @@ function Style() {
 
 
         .legend-box {
-          width: 11px;
-          height: 11px;
+          width: 14px;
+          height: 14px;
 
           display: inline-block;
 
@@ -1862,7 +1960,7 @@ function Style() {
 
 
         .weight-panel {
-          padding: 15px;
+          padding: 16px;
 
           border: 1px solid #dfe4ea;
           border-radius: 7px;
@@ -1874,10 +1972,10 @@ function Style() {
         .weight-panel-title {
           margin-bottom: 16px;
 
-          color: #8e97a2;
+          color: #405a73;
 
-          font-size: 12px;
-          font-weight: 650;
+          font-size: 15px;
+          font-weight: 700;
 
           letter-spacing: 1px;
           text-transform: uppercase;
@@ -1885,13 +1983,13 @@ function Style() {
 
 
         .weight-detail-empty {
-          padding-top: 20px;
+          padding-top: 8px;
 
-          color: #a0a8b1;
+          color: #64748b;
 
-          font-size: 13px;
+          font-size: 15px;
 
-          line-height: 1.8;
+          line-height: 1.7;
         }
 
 
@@ -1908,10 +2006,10 @@ function Style() {
         .detail-small {
           margin-bottom: 4px;
 
-          color: #a0a8b1;
+          color: #64748b;
 
-          font-size: 12px;
-          font-weight: 650;
+          font-size: 15px;
+          font-weight: 700;
 
           letter-spacing: 1px;
         }
@@ -1922,7 +2020,7 @@ function Style() {
 
           color: #34404d;
 
-          font-size: 17px;
+          font-size: 20px;
         }
 
 
@@ -1936,7 +2034,8 @@ function Style() {
 
           color: #718091;
 
-          font-size: 12px;
+          font-size: 15px;
+          font-weight: 650;
         }
 
 
@@ -1950,7 +2049,7 @@ function Style() {
 
 
         .detail-row {
-          min-height: 31px;
+          min-height: 36px;
 
           display: flex;
           align-items: center;
@@ -1959,17 +2058,17 @@ function Style() {
           border-bottom:
             1px solid #f0f2f4;
 
-          color: #8b949f;
+          color: #526579;
 
-          font-size: 12px;
+          font-size: 16px;
         }
 
 
         .detail-row strong {
           color: #3f4b58;
 
-          font-size: 12px;
-          font-weight: 600;
+          font-size: 16px;
+          font-weight: 700;
         }
 
 

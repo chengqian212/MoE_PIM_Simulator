@@ -82,14 +82,14 @@ function SubCube({
   ------------------------------------------------------------
   */
 
-  let color = "#cbd5e1";
+  let color = "#b9c9d9";
 
   if (hovered) {
-    color = "#9fb8d3";
+    color = "#79a7d1";
   }
 
   if (selected) {
-    color = "#6f94bc";
+    color = "#3f82bd";
   }
 
 
@@ -149,8 +149,8 @@ function SubCube({
         <Edges
           color={
             selected
-              ? "#315d89"
-              : "#738395"
+              ? "#0f4c81"
+              : "#5f7488"
           }
           threshold={15}
         />
@@ -177,10 +177,10 @@ function SubCube({
         <div
           style={{
             color: selected
-              ? "#1f4f7b"
-              : "#505b68",
+              ? "#0b3f6d"
+              : "#334155",
 
-            fontSize: "13px",
+            fontSize: "16px",
 
             fontWeight: selected
               ? 700
@@ -189,14 +189,14 @@ function SubCube({
             whiteSpace: "nowrap",
 
             background:
-              "rgba(255,255,255,0.85)",
+              "rgba(248,250,252,0.96)",
 
             border:
-              "1px solid rgba(210,216,224,0.9)",
+              "1px solid rgba(148,163,184,0.95)",
 
             borderRadius: "3px",
 
-            padding: "2px 4px",
+            padding: "4px 7px",
           }}
         >
           SC-{id}
@@ -223,15 +223,15 @@ function SubCube({
         >
           <div
             style={{
-              width: "150px",
+              width: "190px",
 
-              padding: "9px 10px",
+              padding: "12px 13px",
 
               background:
-                "rgba(255,255,255,0.96)",
+                "rgba(248,250,252,0.98)",
 
               border:
-                "1px solid #d7dde5",
+                "1px solid #94a3b8",
 
               borderRadius: "5px",
 
@@ -241,31 +241,33 @@ function SubCube({
               fontFamily:
                 'Inter, "Microsoft YaHei", Arial, sans-serif',
 
-              fontSize: "13px",
+              fontSize: "15px",
 
-              color: "#4b5563",
+              lineHeight: 1.55,
+
+              color: "#334155",
             }}
           >
             <div
               style={{
-                fontSize: "14px",
+                fontSize: "17px",
                 fontWeight: 700,
                 marginBottom: "7px",
-                color: "#2f3b48",
+                color: "#102a43",
               }}
             >
-              Sub-Cube {id}
+              Sub-Cube {id} / 子立方
             </div>
 
             <InfoLine
-              label="Planes"
+              label="已用 Plane"
               value={
                 info?.used_planes ?? "--"
               }
             />
 
             <InfoLine
-              label="Depth"
+              label="深度容量"
               value={
                 info?.depth_capacity ??
                 "--"
@@ -273,7 +275,7 @@ function SubCube({
             />
 
             <InfoLine
-              label="Weights"
+              label="Weight-Cube"
               value={
                 info?.weight_cube_count ??
                 "--"
@@ -281,7 +283,7 @@ function SubCube({
             />
 
             <InfoLine
-              label="Empty"
+              label="空闲 Plane"
               value={
                 info?.empty_planes ??
                 "--"
@@ -315,7 +317,7 @@ function InfoLine({
     >
       <span
         style={{
-          color: "#8a94a1",
+          color: "#526579",
         }}
       >
         {label}
@@ -323,7 +325,7 @@ function InfoLine({
 
       <strong
         style={{
-          color: "#394553",
+          color: "#17263a",
           fontWeight: 600,
         }}
       >
@@ -737,7 +739,7 @@ function GlobalCube3D({
         width: "100%",
         height: "100%",
 
-        minHeight: "540px",
+        minHeight: "100%",
 
         background: "#ffffff",
       }}
@@ -756,35 +758,37 @@ function GlobalCube3D({
           zIndex: 10,
 
           padding:
-            "7px 9px",
+            "10px 12px",
 
           background:
             "rgba(255,255,255,0.9)",
 
           border:
-            "1px solid #e0e5ea",
+            "1px solid #b8c8d8",
 
           borderRadius: "4px",
 
-          fontSize: "13px",
+          fontSize: "15px",
 
-          lineHeight: 1.7,
+          fontWeight: 550,
 
-          color: "#7a8490",
+          lineHeight: 1.65,
+
+          color: "#526579",
 
           pointerEvents: "none",
         }}
       >
         <div>
-          Drag：旋转
+          拖拽旋转 / Drag
         </div>
 
         <div>
-          Wheel：缩放
+          滚轮缩放 / Wheel
         </div>
 
         <div>
-          Click：选择 Sub-Cube
+          单击选择 Sub-Cube / Click
         </div>
       </div>
 
@@ -806,7 +810,7 @@ function GlobalCube3D({
             zIndex: 10,
 
             padding:
-              "8px 11px",
+              "10px 13px",
 
             background:
               "#ffffff",
@@ -816,16 +820,18 @@ function GlobalCube3D({
 
             borderRadius: "4px",
 
-            fontSize: "14px",
+            fontSize: "16px",
 
-            color: "#4a5563",
+            fontWeight: 600,
+
+            color: "#334155",
           }}
         >
-          Selected：
+          已选择 / Selected：
           <strong
             style={{
               marginLeft: "5px",
-              color: "#315d89",
+              color: "#0b4f87",
             }}
           >
             SC-
