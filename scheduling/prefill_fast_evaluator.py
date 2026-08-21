@@ -28,7 +28,12 @@ from statistics import mean
 from typing import Iterable, Iterator
 
 from config import ExecutionRules
-from mapping.trace_profile import DEFAULT_TRACE_ROOT, discover_trace_files
+from mapping.trace_profile import DEFAULT_TRACE_ROOT
+from mapping.trace_split import (
+    EVALUATION_SUBSET,
+    TRACE_SUBSETS,
+    resolve_trace_files,
+)
 from scheduling.prefill_evaluator import (
     DEFAULT_OUTPUT_PATH,
     PrefillEvaluationRecord,
@@ -1518,6 +1523,8 @@ def _evaluate_prefill_fast_file_parallel(
     *,
     index: RuntimeIndex,
     trace_root: Path | str,
+    trace_manifest: Path | str | None,
+    trace_subset: str,
     rules: ExecutionRules,
     max_files: int | None,
     charge_initial_activation: bool,
@@ -1528,7 +1535,13 @@ def _evaluate_prefill_fast_file_parallel(
     scheduling_mode: str,
 ) -> tuple[PrefillEvaluationSummary, tuple[PrefillEvaluationRecord, ...]]:
     root = Path(trace_root).resolve()
-    files = list(discover_trace_files(root))
+    files = list(
+        resolve_trace_files(
+            trace_root=root,
+            manifest_path=trace_manifest,
+            subset=trace_subset,
+        )
+    )
     if max_files is not None:
         files = files[:max_files]
     if not files:
@@ -1545,6 +1558,8 @@ def _evaluate_prefill_fast_file_parallel(
         exact_stats = PrefillWorkloadStats()
         for batch in iter_prefill_batches(
             trace_root=root,
+            trace_manifest=trace_manifest,
+            trace_subset=trace_subset,
             max_files=max_files,
             max_batches=exact_check,
             stats=exact_stats,
@@ -1659,6 +1674,8 @@ def evaluate_prefill_fast(
     *,
     index: RuntimeIndex,
     trace_root: Path | str = DEFAULT_TRACE_ROOT,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     rules: ExecutionRules | None = None,
     max_files: int | None = None,
     max_batches: int | None = None,
@@ -1696,6 +1713,8 @@ def evaluate_prefill_fast(
         return _evaluate_prefill_fast_file_parallel(
             index=index,
             trace_root=trace_root,
+            trace_manifest=trace_manifest,
+            trace_subset=trace_subset,
             rules=rules,
             max_files=max_files,
             charge_initial_activation=charge_initial_activation,
@@ -1720,6 +1739,8 @@ def evaluate_prefill_fast(
     workload_stats = PrefillWorkloadStats()
     batch_iterator = iter_prefill_batches(
         trace_root=trace_root,
+        trace_manifest=trace_manifest,
+        trace_subset=trace_subset,
         max_files=max_files,
         max_batches=max_batches,
         stats=workload_stats,
@@ -1901,6 +1922,17 @@ def main() -> None:
     )
     parser.add_argument("--mapping", type=Path, default=DEFAULT_MAPPING_PATH)
     parser.add_argument("--root", type=Path, default=DEFAULT_TRACE_ROOT)
+    parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="可选 Profile/Evaluation split manifest；正式评估应传 evaluation subset。",
+    )
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
+    )
     parser.add_argument("--max-files", type=int, default=None)
     parser.add_argument("--max-batches", type=int, default=None)
     parser.add_argument("--exact-check", type=int, default=5)
@@ -1929,6 +1961,8 @@ def main() -> None:
     summary, records = evaluate_prefill_fast(
         index=index,
         trace_root=args.root,
+        trace_manifest=args.trace_manifest,
+        trace_subset=args.trace_subset,
         rules=ExecutionRules(),
         max_files=args.max_files,
         max_batches=args.max_batches,

@@ -1,15 +1,22 @@
 """
-真实 Decode Trace 的 CP-SAT Optimality Probe。
+真实 Decode Trace 的 CP-SAT Optimality Probe（Held-out / 分层随机抽样版）。
 
 目的：
-    不修改当前 Decode Greedy Scheduler，抽取真实 Token×Layer 实例，比较：
+    不修改当前 Decode Greedy Scheduler，
+    只在正式 Held-out Evaluation 子集上抽取真实 Token×Layer 实例，比较：
 
         Current Greedy Layer cycles
             vs
         CP-SAT best / proven optimal cycles
 
-从而回答：
-    当前 Decode 调度到底还有多少理论优化空间？
+抽样协议：
+    1. 只从 trace_manifest 指定的 subset（正式实验用 evaluation）读取 Decode Token；
+    2. 先统计各类别 Decode Token 数；
+    3. 按类别规模做比例分层；
+    4. 每个类别内部用固定 random seed 做 reservoir sampling；
+    5. 默认对抽到的每个 Token 检查全部 58 个 MoE Layer。
+
+这样避免旧版本 --max-tokens N 按文件顺序截取，导致样本集中在单个 JSON 文件。
 """
 
 from __future__ import annotations
@@ -17,6 +24,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean
@@ -24,6 +33,7 @@ from typing import Iterable
 
 from config import ExecutionRules
 from mapping.trace_profile import DEFAULT_TRACE_ROOT
+from mapping.trace_split import EVALUATION_SUBSET, TRACE_SUBSETS
 from scheduling.decode_optimal_solver import (
     DecodeOptimalLayerResult,
     DecodeOptimalSolverError,
@@ -36,6 +46,7 @@ from scheduling.runtime_index import (
     RuntimeIndex,
     load_runtime_index,
 )
+from scheduling.trace_workload import TraceToken
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +102,20 @@ class DecodeOptimalitySummary:
     total_solver_wall_time_seconds: float
 
 
+@dataclass(frozen=True, slots=True)
+class DecodeSamplingSummary:
+    protocol: str
+    trace_subset: str
+    sample_seed: int
+    requested_tokens: int
+    source_token_count: int
+    source_file_count: int
+    sampled_token_count: int
+    sampled_file_count: int
+    source_category_counts: dict[str, int]
+    sampled_category_counts: dict[str, int]
+
+
 def _percentile(values: Iterable[float], q: float) -> float | None:
     data = sorted(float(x) for x in values)
     if not data:
@@ -143,7 +168,7 @@ def _greedy_hint(layer_result) -> dict[tuple[int, str], int]:
 def _make_record(
     *,
     instance_id: int,
-    token,
+    token: TraceToken,
     layer_id: int,
     route: tuple[int, ...],
     greedy_cycles: int,
@@ -224,19 +249,230 @@ def build_summary(
     )
 
 
+def _allocate_proportional_quotas(
+    category_counts: dict[str, int],
+    sample_tokens: int,
+) -> dict[str, int]:
+    """按类别规模分层，使用 largest-remainder 分配整数 quota。"""
+
+    if sample_tokens <= 0:
+        raise DecodeOptimalityProbeError("sample_tokens 必须大于 0。")
+
+    positive = {
+        category: count
+        for category, count in category_counts.items()
+        if count > 0
+    }
+    total = sum(positive.values())
+    if total <= 0:
+        raise DecodeOptimalityProbeError("Held-out Decode 中没有可抽样 Token。")
+    if sample_tokens > total:
+        raise DecodeOptimalityProbeError(
+            f"sample_tokens={sample_tokens} 超过 Held-out Decode 总数 {total}。"
+        )
+
+    categories = sorted(positive)
+
+    # 样本量足够时，先保证每个非空类别至少 1 个。
+    quotas = {category: 0 for category in categories}
+    base_reserved = 0
+    if sample_tokens >= len(categories):
+        for category in categories:
+            quotas[category] = 1
+        base_reserved = len(categories)
+
+    remaining = sample_tokens - base_reserved
+    if remaining <= 0:
+        return quotas
+
+    capacities = {
+        category: positive[category] - quotas[category]
+        for category in categories
+    }
+    capacity_total = sum(capacities.values())
+
+    raw_extra: dict[str, float] = {}
+    floor_extra: dict[str, int] = {}
+    for category in categories:
+        if capacity_total == 0:
+            raw = 0.0
+        else:
+            raw = remaining * capacities[category] / capacity_total
+        raw_extra[category] = raw
+        floor_extra[category] = min(capacities[category], math.floor(raw))
+        quotas[category] += floor_extra[category]
+
+    left = sample_tokens - sum(quotas.values())
+    ranked = sorted(
+        categories,
+        key=lambda category: (
+            -(raw_extra[category] - floor_extra[category]),
+            category,
+        ),
+    )
+
+    for category in ranked:
+        if left <= 0:
+            break
+        if quotas[category] < positive[category]:
+            quotas[category] += 1
+            left -= 1
+
+    # 极端容量边界下兜底。
+    if left > 0:
+        for category in categories:
+            while left > 0 and quotas[category] < positive[category]:
+                quotas[category] += 1
+                left -= 1
+            if left <= 0:
+                break
+
+    if sum(quotas.values()) != sample_tokens:
+        raise DecodeOptimalityProbeError("类别 quota 分配失败。")
+
+    return quotas
+
+
+def sample_decode_tokens_stratified(
+    *,
+    trace_root: Path | str,
+    trace_manifest: Path | str | None,
+    trace_subset: str,
+    sample_tokens: int,
+    sample_seed: int,
+    verbose: bool = True,
+) -> tuple[tuple[TraceToken, ...], DecodeSamplingSummary]:
+    """
+    对 Held-out Decode 做两遍流式扫描：
+
+    Pass-1：统计类别规模和源文件数；
+    Pass-2：按类别 quota 做固定种子的 reservoir sampling。
+
+    不把 50k 全量 Token 常驻内存。
+    """
+
+    category_counts: Counter[str] = Counter()
+    source_files: set[str] = set()
+
+    for token in iter_decode_tokens(
+        trace_root=trace_root,
+        trace_manifest=trace_manifest,
+        trace_subset=trace_subset,
+        max_tokens=None,
+        strict_singleton=True,
+        verbose=False,
+    ):
+        category_counts[token.category] += 1
+        source_files.add(token.relative_file)
+
+    total_tokens = sum(category_counts.values())
+    quotas = _allocate_proportional_quotas(dict(category_counts), sample_tokens)
+
+    if verbose:
+        print("\n========== Decode Sampling ==========")
+        print(f"Subset：{trace_subset}")
+        print(f"Source Decode Tokens：{total_tokens}")
+        print(f"Source Files：{len(source_files)}")
+        print(f"Sample Tokens：{sample_tokens}")
+        print(f"Seed：{sample_seed}")
+        print("Category Quotas：")
+        for category in sorted(quotas):
+            print(
+                f"  {category}: source={category_counts[category]}, "
+                f"sample={quotas[category]}"
+            )
+
+    rng = random.Random(sample_seed)
+    seen: Counter[str] = Counter()
+    reservoirs: dict[str, list[TraceToken]] = {
+        category: [] for category in quotas
+    }
+
+    for token in iter_decode_tokens(
+        trace_root=trace_root,
+        trace_manifest=trace_manifest,
+        trace_subset=trace_subset,
+        max_tokens=None,
+        strict_singleton=True,
+        verbose=False,
+    ):
+        category = token.category
+        quota = quotas.get(category, 0)
+        if quota <= 0:
+            continue
+
+        seen[category] += 1
+        bucket = reservoirs[category]
+
+        if len(bucket) < quota:
+            bucket.append(token)
+            continue
+
+        replacement = rng.randrange(seen[category])
+        if replacement < quota:
+            bucket[replacement] = token
+
+    sampled = tuple(
+        sorted(
+            (
+                token
+                for category in sorted(reservoirs)
+                for token in reservoirs[category]
+            ),
+            key=lambda token: token.token_id,
+        )
+    )
+
+    if len(sampled) != sample_tokens:
+        raise DecodeOptimalityProbeError(
+            f"实际抽样 {len(sampled)} 个 Token，期望 {sample_tokens}。"
+        )
+
+    sampled_category_counts = Counter(token.category for token in sampled)
+    sampled_files = {token.relative_file for token in sampled}
+
+    sampling = DecodeSamplingSummary(
+        protocol="heldout_proportional_category_stratified_reservoir",
+        trace_subset=trace_subset,
+        sample_seed=sample_seed,
+        requested_tokens=sample_tokens,
+        source_token_count=total_tokens,
+        source_file_count=len(source_files),
+        sampled_token_count=len(sampled),
+        sampled_file_count=len(sampled_files),
+        source_category_counts={
+            category: category_counts[category]
+            for category in sorted(category_counts)
+        },
+        sampled_category_counts={
+            category: sampled_category_counts[category]
+            for category in sorted(sampled_category_counts)
+        },
+    )
+
+    return sampled, sampling
+
+
 def evaluate_decode_optimality(
     *,
     index: RuntimeIndex,
     trace_root: Path | str = DEFAULT_TRACE_ROOT,
-    max_tokens: int = 10,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
+    sample_tokens: int = 100,
+    sample_seed: int = 42,
     layers: tuple[int, ...] | None = None,
     max_instances: int | None = None,
     time_limit_seconds: float = 5.0,
     solver_workers: int = 8,
     verbose: bool = True,
-) -> tuple[DecodeOptimalitySummary, tuple[DecodeOptimalityRecord, ...]]:
-    if max_tokens <= 0:
-        raise DecodeOptimalityProbeError("max_tokens 必须大于 0。")
+) -> tuple[
+    DecodeOptimalitySummary,
+    tuple[DecodeOptimalityRecord, ...],
+    DecodeSamplingSummary,
+]:
+    if sample_tokens <= 0:
+        raise DecodeOptimalityProbeError("sample_tokens 必须大于 0。")
     if max_instances is not None and max_instances <= 0:
         raise DecodeOptimalityProbeError("max_instances 必须大于 0。")
 
@@ -247,22 +483,32 @@ def evaluate_decode_optimality(
         if not 0 <= layer_id < index.num_layers:
             raise DecodeOptimalityProbeError(f"layer_id={layer_id} 超出范围。")
 
+    sampled_tokens, sampling = sample_decode_tokens_stratified(
+        trace_root=trace_root,
+        trace_manifest=trace_manifest,
+        trace_subset=trace_subset,
+        sample_tokens=sample_tokens,
+        sample_seed=sample_seed,
+        verbose=verbose,
+    )
+
     rules = ExecutionRules()
     records: list[DecodeOptimalityRecord] = []
     instance_id = 0
 
-    for token in iter_decode_tokens(
-        trace_root=trace_root,
-        max_tokens=max_tokens,
-        strict_singleton=True,
-        verbose=False,
-    ):
+    for sample_index, token in enumerate(sampled_tokens):
+        if verbose:
+            print(
+                f"[DecodeOptimalityToken] {sample_index + 1}/{len(sampled_tokens)} "
+                f"token={token.token_id}, category={token.category}, "
+                f"file={token.relative_file}, segment={token.segment_index}"
+            )
+
         for layer_id in layers:
             route = token.routed_experts_by_layer[layer_id]
 
-            # 当前 Greedy Exact 单层结果。
             # 当前 Baseline 中，跨层 active state 不会命中本层 WC，且 startup==switch，
-            # 因此用 cold state 得到的 Layer latency 与正式 Decode latency 口径一致。
+            # 因此 cold-state 单层 latency 与正式 Decode layer latency 口径一致。
             greedy = schedule_layer(
                 index=index,
                 layer_id=layer_id,
@@ -301,7 +547,10 @@ def evaluate_decode_optimality(
             records.append(record)
             instance_id += 1
 
-            if verbose:
+            if verbose and (
+                not record.proven_optimal
+                or (record.improvement_cycles or 0) > 0
+            ):
                 opt_text = (
                     str(record.cp_sat_cycles)
                     if record.cp_sat_cycles is not None
@@ -313,19 +562,32 @@ def evaluate_decode_optimality(
                     else "unproven"
                 )
                 print(
-                    f"[DecodeOptimality] #{record.instance_id} "
-                    f"token={record.token_id}, L{record.layer_id}, "
-                    f"greedy={record.greedy_cycles}, cp={opt_text}, "
-                    f"status={record.cp_sat_status}, gap={gap_text}, "
-                    f"time={record.wall_time_seconds:.3f}s"
+                    f"  [Interesting] #{record.instance_id} "
+                    f"L{record.layer_id}, greedy={record.greedy_cycles}, "
+                    f"cp={opt_text}, status={record.cp_sat_status}, "
+                    f"gap={gap_text}, time={record.wall_time_seconds:.3f}s"
                 )
 
             if max_instances is not None and len(records) >= max_instances:
                 summary = build_summary(tuple(records))
-                return summary, tuple(records)
+                return summary, tuple(records), sampling
 
     summary = build_summary(tuple(records))
-    return summary, tuple(records)
+    return summary, tuple(records), sampling
+
+
+def print_sampling_summary(sampling: DecodeSamplingSummary) -> None:
+    print("\n========== Decode Sampling Summary ==========")
+    print(f"Protocol：{sampling.protocol}")
+    print(f"Subset：{sampling.trace_subset}")
+    print(f"Seed：{sampling.sample_seed}")
+    print(f"Source Tokens：{sampling.source_token_count}")
+    print(f"Source Files：{sampling.source_file_count}")
+    print(f"Sampled Tokens：{sampling.sampled_token_count}")
+    print(f"Sampled Files：{sampling.sampled_file_count}")
+    print("Sampled Category Counts：")
+    for category, count in sampling.sampled_category_counts.items():
+        print(f"  {category}: {count}")
 
 
 def print_summary(summary: DecodeOptimalitySummary) -> None:
@@ -369,19 +631,37 @@ def save_result(
     output_path: Path | str,
     summary: DecodeOptimalitySummary,
     records: tuple[DecodeOptimalityRecord, ...],
+    sampling: DecodeSamplingSummary,
     mapping_path: Path | str,
     trace_root: Path | str,
+    trace_manifest: Path | str | None,
+    trace_subset: str,
     time_limit_seconds: float,
     solver_workers: int,
+    layers: tuple[int, ...],
+    max_instances: int | None,
 ) -> Path:
     path = Path(output_path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "evaluation_version": 1,
+        "evaluation_version": 2,
         "purpose": "Decode layer Greedy vs CP-SAT optimality gap",
         "metric_scope": "MoE Expert Decode Layer only; not full TPOT",
         "mapping": str(Path(mapping_path).resolve()),
         "trace_root": str(Path(trace_root).resolve()),
+        "trace_protocol": {
+            "manifest": (
+                str(Path(trace_manifest).resolve())
+                if trace_manifest is not None
+                else None
+            ),
+            "subset": trace_subset,
+        },
+        "sampling": asdict(sampling),
+        "probe_config": {
+            "layers": list(layers),
+            "max_instances": max_instances,
+        },
         "solver": {
             "name": "OR-Tools CP-SAT",
             "time_limit_seconds_per_instance": time_limit_seconds,
@@ -391,17 +671,49 @@ def save_result(
         "summary": asdict(summary),
         "records": [asdict(record) for record in records],
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     return path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="抽样真实 Decode Token×Layer，用 CP-SAT 测当前 Greedy 距离理论最优的差距。"
+        description=(
+            "从 Held-out Decode 中按类别比例分层随机抽 Token×Layer，"
+            "用 CP-SAT 测当前 Greedy 距离理论最优的差距。"
+        )
     )
     parser.add_argument("--mapping", type=Path, default=DEFAULT_MAPPING_PATH)
     parser.add_argument("--root", type=Path, default=DEFAULT_TRACE_ROOT)
-    parser.add_argument("--max-tokens", type=int, default=10)
+    parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="正式实验传 80/20 split manifest。",
+    )
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
+    )
+    parser.add_argument(
+        "--sample-tokens",
+        "--max-tokens",
+        dest="sample_tokens",
+        type=int,
+        default=100,
+        help=(
+            "从指定 subset 中按类别比例分层随机抽多少个 Decode Token；"
+            "--max-tokens 作为兼容别名，但不再表示顺序截断。"
+        ),
+    )
+    parser.add_argument(
+        "--sample-seed",
+        type=int,
+        default=42,
+    )
     parser.add_argument(
         "--layers",
         type=str,
@@ -411,8 +723,11 @@ def main() -> None:
     parser.add_argument(
         "--max-instances",
         type=int,
-        default=200,
-        help="最多求多少个 Token×Layer 实例；默认 200，防止第一次误跑过大。",
+        default=None,
+        help=(
+            "可选硬上限。正式 all-layer 实验建议不设置，"
+            "避免在最后一个 Token 中途截断。"
+        ),
     )
     parser.add_argument(
         "--time-limit",
@@ -435,10 +750,13 @@ def main() -> None:
     layers = _parse_layers(args.layers, index.num_layers)
 
     try:
-        summary, records = evaluate_decode_optimality(
+        summary, records, sampling = evaluate_decode_optimality(
             index=index,
             trace_root=args.root,
-            max_tokens=args.max_tokens,
+            trace_manifest=args.trace_manifest,
+            trace_subset=args.trace_subset,
+            sample_tokens=args.sample_tokens,
+            sample_seed=args.sample_seed,
             layers=layers,
             max_instances=args.max_instances,
             time_limit_seconds=args.time_limit,
@@ -448,6 +766,7 @@ def main() -> None:
     except DecodeOptimalSolverError as exc:
         raise SystemExit(str(exc)) from exc
 
+    print_sampling_summary(sampling)
     print_summary(summary)
 
     if not args.no_save:
@@ -455,10 +774,15 @@ def main() -> None:
             output_path=args.output,
             summary=summary,
             records=records,
+            sampling=sampling,
             mapping_path=args.mapping,
             trace_root=args.root,
+            trace_manifest=args.trace_manifest,
+            trace_subset=args.trace_subset,
             time_limit_seconds=args.time_limit,
             solver_workers=args.solver_workers,
+            layers=layers,
+            max_instances=args.max_instances,
         )
         print(f"\nSaved：{saved}")
 

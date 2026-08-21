@@ -21,14 +21,14 @@ Prefill + Decode 结果。
 
 ------------------------------------------------------------
 
-默认正式全量：
+默认直接运行（不传 manifest）仍可扫描全部 Trace。
 
-    Prefill:
-        全部 2020 个 Prefill Batch
+正式 Profile/Held-out 实验由上层 runner 传入：
 
-    Decode:
-        全部纯 Decode Token
-        默认 exact-check 前 100 个 Token
+    --trace-manifest ...
+    --trace-subset evaluation
+
+此时 Prefill/Decode 只评估 held-out JSON 文件。
 
     Summary:
         自动合并两阶段结果
@@ -80,6 +80,9 @@ import time
 
 from dataclasses import dataclass
 from pathlib import Path
+
+from mapping.trace_profile import DEFAULT_TRACE_ROOT
+from mapping.trace_split import EVALUATION_SUBSET, TRACE_SUBSETS
 
 
 # ============================================================
@@ -350,6 +353,12 @@ def run_prefill(
 
     mapping: Path,
 
+    trace_root: Path,
+
+    trace_manifest: Path | None,
+
+    trace_subset: str,
+
     output_path: Path,
 
     smoke: bool,
@@ -393,6 +402,12 @@ def run_prefill(
             mapping
         ),
 
+        "--root",
+        str(trace_root),
+
+        "--trace-subset",
+        trace_subset,
+
         "--output",
         str(
             output_path
@@ -413,6 +428,9 @@ def run_prefill(
             workers
         ),
     ]
+
+    if trace_manifest is not None:
+        command.extend(["--trace-manifest", str(trace_manifest)])
 
     # ========================================================
     # max-batches 优先级：
@@ -471,6 +489,12 @@ def run_decode(
 
     mapping: Path,
 
+    trace_root: Path,
+
+    trace_manifest: Path | None,
+
+    trace_subset: str,
+
     output_path: Path,
 
     smoke: bool,
@@ -516,6 +540,12 @@ def run_decode(
             mapping
         ),
 
+        "--root",
+        str(trace_root),
+
+        "--trace-subset",
+        trace_subset,
+
         "--output",
         str(
             output_path
@@ -541,6 +571,9 @@ def run_decode(
             workers
         ),
     ]
+
+    if trace_manifest is not None:
+        command.extend(["--trace-manifest", str(trace_manifest)])
 
     # ========================================================
     # max-tokens 优先级：
@@ -602,6 +635,10 @@ def run_summary(
     decode_path: Path,
 
     output_path: Path,
+
+    trace_manifest: Path | None = None,
+
+    evaluation_subset: str = EVALUATION_SUBSET,
 ) -> StageRunResult:
 
     if not (
@@ -642,6 +679,16 @@ def run_summary(
             output_path
         ),
     ]
+
+    if trace_manifest is not None:
+        command.extend(
+            [
+                "--trace-manifest",
+                str(trace_manifest),
+                "--evaluation-subset",
+                evaluation_subset,
+            ]
+        )
 
     return (
         run_command(
@@ -777,6 +824,30 @@ def main() -> None:
         default=(
             DEFAULT_SUMMARY_OUTPUT
         ),
+    )
+
+    # ========================================================
+    # Trace protocol
+    # ========================================================
+
+    parser.add_argument(
+        "--trace-root",
+        type=Path,
+        default=DEFAULT_TRACE_ROOT,
+    )
+
+    parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="Profile/Held-out split manifest；正式实验传入该文件。",
+    )
+
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
+        help="Prefill/Decode 使用的 held-out subset。",
     )
 
     # ========================================================
@@ -980,6 +1051,13 @@ def main() -> None:
         .resolve()
     )
 
+    trace_root = args.trace_root.resolve()
+    trace_manifest = (
+        args.trace_manifest.resolve()
+        if args.trace_manifest is not None
+        else None
+    )
+
     prefill_output = (
         args.prefill_output
         .resolve()
@@ -1036,6 +1114,9 @@ def main() -> None:
                 output_path=(
                     summary_output
                 ),
+
+                trace_manifest=trace_manifest,
+                evaluation_subset=args.trace_subset,
             )
         )
 
@@ -1062,6 +1143,10 @@ def main() -> None:
                 mapping=(
                     mapping
                 ),
+
+                trace_root=trace_root,
+                trace_manifest=trace_manifest,
+                trace_subset=args.trace_subset,
 
                 output_path=(
                     prefill_output
@@ -1120,6 +1205,10 @@ def main() -> None:
                     mapping
                 ),
 
+                trace_root=trace_root,
+                trace_manifest=trace_manifest,
+                trace_subset=args.trace_subset,
+
                 output_path=(
                     decode_output
                 ),
@@ -1177,6 +1266,10 @@ def main() -> None:
                 mapping
             ),
 
+            trace_root=trace_root,
+            trace_manifest=trace_manifest,
+            trace_subset=args.trace_subset,
+
             output_path=(
                 prefill_output
             ),
@@ -1219,6 +1312,10 @@ def main() -> None:
             mapping=(
                 mapping
             ),
+
+            trace_root=trace_root,
+            trace_manifest=trace_manifest,
+            trace_subset=args.trace_subset,
 
             output_path=(
                 decode_output
@@ -1274,6 +1371,9 @@ def main() -> None:
             output_path=(
                 summary_output
             ),
+
+            trace_manifest=trace_manifest,
+            evaluation_subset=args.trace_subset,
         )
     )
 

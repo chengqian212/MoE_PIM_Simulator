@@ -124,7 +124,12 @@ from typing import Iterable, Iterator
 
 from config import ExecutionRules
 
-from mapping.trace_profile import DEFAULT_TRACE_ROOT, discover_trace_files
+from mapping.trace_profile import DEFAULT_TRACE_ROOT
+from mapping.trace_split import (
+    EVALUATION_SUBSET,
+    TRACE_SUBSETS,
+    resolve_trace_files,
+)
 
 from scheduling.decode_workload import (
     DecodeWorkloadStats,
@@ -1316,6 +1321,8 @@ def _evaluate_decode_fast_file_parallel(
     *,
     index: RuntimeIndex,
     trace_root: Path | str,
+    trace_manifest: Path | str | None,
+    trace_subset: str,
     max_files: int | None,
     exact_check: int,
     cache_size: int,
@@ -1331,7 +1338,13 @@ def _evaluate_decode_fast_file_parallel(
     """
 
     root = Path(trace_root).resolve()
-    files = list(discover_trace_files(root))
+    files = list(
+        resolve_trace_files(
+            trace_root=root,
+            manifest_path=trace_manifest,
+            subset=trace_subset,
+        )
+    )
     if max_files is not None:
         files = files[:max_files]
     if not files:
@@ -1353,6 +1366,8 @@ def _evaluate_decode_fast_file_parallel(
         exact_stats = DecodeWorkloadStats()
         for token in iter_decode_tokens(
             trace_root=root,
+            trace_manifest=trace_manifest,
+            trace_subset=trace_subset,
             max_files=max_files,
             max_tokens=exact_check,
             stats=exact_stats,
@@ -1532,6 +1547,8 @@ def evaluate_decode_fast(
     *,
     index: RuntimeIndex,
     trace_root: Path | str = DEFAULT_TRACE_ROOT,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     max_files: int | None = None,
     max_tokens: int | None = None,
     exact_check: int = 100,
@@ -1578,6 +1595,8 @@ def evaluate_decode_fast(
         return _evaluate_decode_fast_file_parallel(
             index=index,
             trace_root=trace_root,
+            trace_manifest=trace_manifest,
+            trace_subset=trace_subset,
             max_files=max_files,
             exact_check=exact_check,
             cache_size=cache_size,
@@ -1612,6 +1631,8 @@ def evaluate_decode_fast(
     workload_stats = DecodeWorkloadStats()
     token_iterator = iter_decode_tokens(
         trace_root=trace_root,
+        trace_manifest=trace_manifest,
+        trace_subset=trace_subset,
         max_files=max_files,
         max_tokens=max_tokens,
         stats=workload_stats,
@@ -2078,6 +2099,10 @@ def save_result(
     mapping: Path | str,
 
     trace_root: Path | str,
+
+    trace_manifest: Path | str | None = None,
+
+    trace_subset: str = EVALUATION_SUBSET,
 ) -> Path:
 
     path = (
@@ -2121,6 +2146,15 @@ def save_result(
                 trace_root
             ).resolve()
         ),
+
+        "trace_protocol": {
+            "manifest": (
+                str(Path(trace_manifest).resolve())
+                if trace_manifest is not None
+                else None
+            ),
+            "subset": trace_subset,
+        },
 
         "workload_stats": (
             asdict(
@@ -2186,6 +2220,19 @@ def main() -> None:
         default=(
             DEFAULT_TRACE_ROOT
         ),
+    )
+
+    parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="可选 Profile/Evaluation split manifest；正式评估应传 evaluation subset。",
+    )
+
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
     )
 
     parser.add_argument(
@@ -2288,6 +2335,9 @@ def main() -> None:
                 args.root
             ),
 
+            trace_manifest=args.trace_manifest,
+            trace_subset=args.trace_subset,
+
             max_files=(
                 args.max_files
             ),
@@ -2358,6 +2408,9 @@ def main() -> None:
                 trace_root=(
                     args.root
                 ),
+
+                trace_manifest=args.trace_manifest,
+                trace_subset=args.trace_subset,
             )
         )
 

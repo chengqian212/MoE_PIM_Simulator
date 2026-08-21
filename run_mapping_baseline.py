@@ -46,9 +46,11 @@ Step 4.7
 
 ------------------------------------------------------------
 
-正式结果默认使用：
+正式 Pairing/Mapping 实验建议使用：
 
-    全部 Chinese-SimpleQA Trace
+    Profile subset（默认正式批量脚本为 80%）
+
+并通过 TraceProfile cache 复用 frequency/coactivation。
 
 Routed up 配对：
 
@@ -98,6 +100,11 @@ from mapping.physical_binder import (
 )
 
 from mapping.plane_pairer import (
+    DEFAULT_PAIRING_RANDOM_SEED,
+    PAIRING_MODE_FREQUENCY_AWARE,
+    PAIRING_MODE_GREEDY,
+    PAIRING_MODE_OPTIMAL,
+    PAIRING_MODE_RANDOM,
     PAIRING_MODE_SEQUENTIAL,
     PAIRING_MODE_TRACE_AWARE,
     PAIRING_MODES,
@@ -114,6 +121,10 @@ from mapping.spatial_layout_loader import (
 )
 
 from mapping.subcube_mapper import (
+    DEFAULT_MAPPING_RANDOM_SEED,
+    MAPPING_MODE_FREQUENCY_AWARE,
+    MAPPING_MODE_LEAST_LOADED,
+    MAPPING_MODE_RANDOM,
     MAPPING_MODE_ROUND_ROBIN,
     MAPPING_MODE_TRACE_AWARE,
     MAPPING_MODES,
@@ -125,8 +136,15 @@ from mapping.subcube_mapper import (
 from mapping.trace_profile import (
     DEFAULT_TRACE_ROOT,
     TraceProfile,
-    load_chinese_simpleqa_profile,
     print_profile_summary,
+)
+from mapping.trace_profile_cache import (
+    load_or_build_trace_profile,
+)
+from mapping.trace_split import (
+    DEFAULT_PROFILE_CACHE,
+    PROFILE_SUBSET,
+    TRACE_SUBSETS,
 )
 
 
@@ -447,6 +465,12 @@ def build_output_dict(
     mapping_mode: str,
     local_search_enabled: bool,
     local_search_rounds: int,
+    pairing_random_seed: int = DEFAULT_PAIRING_RANDOM_SEED,
+    mapping_random_seed: int = DEFAULT_MAPPING_RANDOM_SEED,
+    trace_manifest: Path | None = None,
+    trace_subset: str = PROFILE_SUBSET,
+    trace_profile_fingerprint: str | None = None,
+    trace_profile_cache_path: Path | None = None,
 ) -> dict[
     str,
     Any,
@@ -669,6 +693,21 @@ def build_output_dict(
                 "Chinese-SimpleQA"
             ),
 
+            "profile_protocol": {
+                "manifest": (
+                    str(trace_manifest.resolve())
+                    if trace_manifest is not None
+                    else None
+                ),
+                "subset": trace_subset,
+                "file_fingerprint": trace_profile_fingerprint,
+                "cache_path": (
+                    str(trace_profile_cache_path.resolve())
+                    if trace_profile_cache_path is not None
+                    else None
+                ),
+            },
+
             "file_count": (
                 profile.file_count
             ),
@@ -778,6 +817,10 @@ def build_output_dict(
                 local_search_rounds
             ),
 
+            "random_seed": (
+                pairing_random_seed
+            ),
+
             "gate_down_plane_count": (
                 pairing
                 .gate_down_plane_count
@@ -817,6 +860,10 @@ def build_output_dict(
         "subcube_mapping": {
             "mode": (
                 mapping_mode
+            ),
+
+            "random_seed": (
+                mapping_random_seed
             ),
 
             "plane_counts": [
@@ -956,24 +1003,13 @@ def build_default_output_path(
     pairing_mode: str,
     mapping_mode: str,
     max_files: int | None,
+    local_search_enabled: bool = True,
 ) -> Path:
     """
-    根据 Pairing + Mapping 两个模式自动命名四组主消融：
+    自动命名 Mapping 输出。
 
-        trace_aware + trace_aware
-            -> mapping_baseline_...
-
-        sequential + trace_aware
-            -> mapping_mapping_only_...
-
-        trace_aware + round_robin
-            -> mapping_pairing_only_...
-
-        sequential + round_robin
-            -> mapping_naive_...
-
-    Full Baseline 继续保留原文件名，
-    不破坏现有 Prefill / Decode / WebUI 默认路径。
+    兼容原有四组主消融文件名；新增 Pairing baseline 时，
+    使用独立文件名，避免覆盖现有 baseline。
     """
 
     mode_pair = (
@@ -984,7 +1020,7 @@ def build_default_output_path(
     if mode_pair == (
         PAIRING_MODE_TRACE_AWARE,
         MAPPING_MODE_TRACE_AWARE,
-    ):
+    ) and local_search_enabled:
         experiment_name = "baseline"
 
     elif mode_pair == (
@@ -996,7 +1032,7 @@ def build_default_output_path(
     elif mode_pair == (
         PAIRING_MODE_TRACE_AWARE,
         MAPPING_MODE_ROUND_ROBIN,
-    ):
+    ) and local_search_enabled:
         experiment_name = "pairing_only"
 
     elif mode_pair == (
@@ -1005,33 +1041,33 @@ def build_default_output_path(
     ):
         experiment_name = "naive"
 
+    elif (
+        pairing_mode == PAIRING_MODE_TRACE_AWARE
+        and not local_search_enabled
+    ):
+        experiment_name = (
+            f"pairing_greedy_mapping_{mapping_mode}"
+        )
+
     else:
-        raise MappingBaselineError(
-            "未知 Pairing/Mapping 模式组合："
-            f"pairing={pairing_mode!r}, "
-            f"mapping={mapping_mode!r}。"
+        experiment_name = (
+            f"pairing_{pairing_mode}_mapping_{mapping_mode}"
         )
 
     hardware = spatial.hardware
 
-    if max_files is None:
+    debug_suffix = (
+        ""
+        if max_files is None
+        else f"_debug_{max_files}files"
+    )
 
-        filename = (
-            f"mapping_{experiment_name}_"
-            f"N{hardware.N}_"
-            f"H{hardware.H}_"
-            f"W{hardware.W}.json"
-        )
-
-    else:
-
-        filename = (
-            f"mapping_{experiment_name}_debug_"
-            f"{max_files}files_"
-            f"N{hardware.N}_"
-            f"H{hardware.H}_"
-            f"W{hardware.W}.json"
-        )
+    filename = (
+        f"mapping_{experiment_name}{debug_suffix}_"
+        f"N{hardware.N}_"
+        f"H{hardware.H}_"
+        f"W{hardware.W}.json"
+    )
 
     return (
         results_dir
@@ -1164,23 +1200,26 @@ def run_mapping_baseline(
         "Load Chinese-SimpleQA Trace"
     )
 
-    profile = (
-        load_chinese_simpleqa_profile(
-            trace_root=(
-                args.trace_root
-            ),
-
-            max_files=(
-                args.max_files
-            ),
-
+    profile, profile_load_info = (
+        load_or_build_trace_profile(
+            trace_root=args.trace_root,
+            manifest_path=args.trace_manifest,
+            subset=args.trace_subset,
+            cache_path=args.profile_cache,
+            max_files=args.max_files,
+            workers=args.profile_workers,
+            refresh_cache=args.refresh_profile_cache,
             strict=True,
-
-            verbose=(
-                not args.quiet
-            ),
+            verbose=(not args.quiet),
         )
     )
+
+    print(
+        "Trace Profile Source："
+        + ("CACHE HIT" if profile_load_info.cache_hit else "REBUILT")
+    )
+    print(f"Trace Profile Files：{profile_load_info.file_count}")
+    print(f"Trace Profile Cache：{profile_load_info.cache_path}")
 
     print_profile_summary(
         profile,
@@ -1203,8 +1242,9 @@ def run_mapping_baseline(
         "Logical Plane Pairing"
     )
 
-    # Sequential Pairing 本身不使用 Local Search。
-    # --no-local-search 只对 trace_aware 模式有意义。
+    # 只有完整 trace_aware 模式默认启用 Local Search。
+    # greedy / sequential / random / frequency_aware / optimal
+    # 都不会执行 Local Search。
     local_search_enabled = (
         args.pairing_mode
         == PAIRING_MODE_TRACE_AWARE
@@ -1232,6 +1272,10 @@ def run_mapping_baseline(
 
             local_search_rounds=(
                 args.local_search_rounds
+            ),
+
+            random_seed=(
+                args.pairing_random_seed
             ),
         )
     )
@@ -1289,6 +1333,10 @@ def run_mapping_baseline(
 
             mapping_mode=(
                 args.mapping_mode
+            ),
+
+            random_seed=(
+                args.mapping_random_seed
             ),
         )
     )
@@ -1417,6 +1465,27 @@ def run_mapping_baseline(
                 local_search_rounds=(
                     args.local_search_rounds
                 ),
+
+                pairing_random_seed=(
+                    args.pairing_random_seed
+                ),
+
+                mapping_random_seed=(
+                    args.mapping_random_seed
+                ),
+
+                trace_manifest=(
+                    args.trace_manifest.resolve()
+                    if args.trace_manifest is not None
+                    else None
+                ),
+                trace_subset=args.trace_subset,
+                trace_profile_fingerprint=(
+                    profile_load_info.file_fingerprint
+                ),
+                trace_profile_cache_path=(
+                    profile_load_info.cache_path
+                ),
             )
         )
 
@@ -1440,6 +1509,10 @@ def run_mapping_baseline(
 
                     max_files=(
                         args.max_files
+                    ),
+
+                    local_search_enabled=(
+                        local_search_enabled
                     ),
                 )
             )
@@ -1627,6 +1700,42 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help=(
+            "Profile/Held-out split manifest；"
+            "正式 Mapping 应只读取 profile subset。"
+        ),
+    )
+
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=PROFILE_SUBSET,
+    )
+
+    parser.add_argument(
+        "--profile-cache",
+        type=Path,
+        default=DEFAULT_PROFILE_CACHE,
+        help="TraceProfile pickle cache；文件集合变化时自动失效。",
+    )
+
+    parser.add_argument(
+        "--profile-workers",
+        type=int,
+        default=0,
+        help="首次构建 TraceProfile 的 worker 数；0=自动，最多4。",
+    )
+
+    parser.add_argument(
+        "--refresh-profile-cache",
+        action="store_true",
+        help="忽略现有 TraceProfile cache，强制重建。",
+    )
+
+    parser.add_argument(
         "--max-files",
         type=int,
         default=None,
@@ -1651,9 +1760,10 @@ def main() -> None:
         choices=PAIRING_MODES,
         help=(
             "Routed up Pairing 策略："
-            "trace_aware=当前 Greedy+Local Search；"
-            "sequential=固定 E0-E1、E2-E3...，"
-            "用于消融实验。"
+            "sequential / random / frequency_aware / "
+            "greedy / trace_aware / optimal。"
+            "trace_aware=Greedy+Local Search；"
+            "optimal=最小权完美匹配参考。"
         ),
     )
 
@@ -1674,6 +1784,16 @@ def main() -> None:
         default=4,
     )
 
+    parser.add_argument(
+        "--pairing-random-seed",
+        type=int,
+        default=DEFAULT_PAIRING_RANDOM_SEED,
+        help=(
+            "Random Pairing 的基础随机种子；"
+            "每层实际使用 seed + layer_id。"
+        ),
+    )
+
     # ========================================================
     # Sub-Cube Mapping
     # ========================================================
@@ -1687,9 +1807,18 @@ def main() -> None:
         choices=MAPPING_MODES,
         help=(
             "LogicalPlane -> Sub-Cube 策略："
-            "trace_aware=当前正式 Trace-aware Mapping；"
-            "round_robin=不使用 Trace 决策的受约束轮询，"
-            "用于消融实验。"
+            "random / round_robin / least_loaded / "
+            "frequency_aware / trace_aware。"
+        ),
+    )
+
+    parser.add_argument(
+        "--mapping-random-seed",
+        type=int,
+        default=DEFAULT_MAPPING_RANDOM_SEED,
+        help=(
+            "Random Mapping 的固定随机种子；"
+            "其他 Mapping 模式忽略该参数。"
         ),
     )
 

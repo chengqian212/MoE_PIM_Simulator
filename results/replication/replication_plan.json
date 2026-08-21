@@ -1,0 +1,1038 @@
+{
+  "replication_version": 1,
+  "policy": {
+    "name": "profile_prefill_duplicate_pressure_routed_pair",
+    "trace_manifest": "results\\splits\\chinese_simpleqa_80_20_seed42.json",
+    "trace_subset": "profile",
+    "profile_batch_count": 1616,
+    "profile_input_token_count": 23916,
+    "routed_experts_only": true,
+    "selection_metric": "sum_batch_max_0_hits_minus_1",
+    "reuse_existing_routed_up_pairs": true,
+    "require_base_copy_disjoint_from_replica_target_scs": true
+  },
+  "base_mapping": {
+    "path": "results\\mappings\\mapping_baseline_N4_H7168_W4096.json",
+    "mapping_version": 1,
+    "layout_id": "H7168_W4096_original_7168x2048_H7168_W4096",
+    "mapping_mode": "trace_aware",
+    "pairing_mode": "trace_aware"
+  },
+  "hardware": {
+    "N": 4,
+    "num_subcubes": 16,
+    "H": 7168,
+    "W": 4096,
+    "D": 1398,
+    "P": 22359,
+    "Q": 22368,
+    "empty_plane_slots_before": 9,
+    "plane_counts_before": [
+      1398,
+      1391,
+      1398,
+      1398,
+      1398,
+      1398,
+      1398,
+      1398,
+      1398,
+      1398,
+      1396,
+      1398,
+      1398,
+      1398,
+      1398,
+      1398
+    ],
+    "free_plane_counts_before": [
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "replica_gate_down_subcube_id": 1,
+    "replica_up_subcube_id": 10,
+    "capacity_pair_units": 2,
+    "selected_pair_units": 2,
+    "replicated_expert_count": 4,
+    "replica_planes_used": 6,
+    "free_plane_counts_after": [
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "empty_plane_slots_after": 3
+  },
+  "selected_pairs": [
+    {
+      "rank": 1,
+      "layer_id": 21,
+      "experts": [
+        114,
+        205
+      ],
+      "pair_duplicate_pressure": 16082,
+      "pair_total_hits": 17750,
+      "pair_duplicate_batches": 1626,
+      "pair_max_hits_in_batch": 24,
+      "members": [
+        {
+          "layer_id": 21,
+          "expert_id": 114,
+          "replica_id": 1,
+          "selection_stats": {
+            "total_hits": 81,
+            "duplicate_pressure": 29,
+            "duplicate_batches": 11,
+            "max_hits_in_batch": 13
+          },
+          "base_copy": {
+            "gate_down_subcube_id": 5,
+            "up_subcube_id": 8
+          },
+          "replica_copy": {
+            "gate": {
+              "virtual_cube_id": 44718,
+              "virtual_plane_id": 22359,
+              "virtual_slot_id": 44718,
+              "subcube_id": 1,
+              "z": 1391,
+              "slot_index": 0,
+              "x": 0,
+              "y": 0,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "gate_proj",
+              "logical_cube_rotated": false
+            },
+            "up": {
+              "virtual_cube_id": 44722,
+              "virtual_plane_id": 22361,
+              "virtual_slot_id": 44722,
+              "subcube_id": 10,
+              "z": 1396,
+              "slot_index": 0,
+              "x": 0,
+              "y": 0,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "up_proj",
+              "logical_cube_rotated": false
+            },
+            "down": {
+              "virtual_cube_id": 44719,
+              "virtual_plane_id": 22359,
+              "virtual_slot_id": 44719,
+              "subcube_id": 1,
+              "z": 1391,
+              "slot_index": 1,
+              "x": 0,
+              "y": 2048,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "down_proj",
+              "logical_cube_rotated": true
+            }
+          }
+        },
+        {
+          "layer_id": 21,
+          "expert_id": 205,
+          "replica_id": 1,
+          "selection_stats": {
+            "total_hits": 17669,
+            "duplicate_pressure": 16053,
+            "duplicate_batches": 1615,
+            "max_hits_in_batch": 24
+          },
+          "base_copy": {
+            "gate_down_subcube_id": 7,
+            "up_subcube_id": 8
+          },
+          "replica_copy": {
+            "gate": {
+              "virtual_cube_id": 44720,
+              "virtual_plane_id": 22360,
+              "virtual_slot_id": 44720,
+              "subcube_id": 1,
+              "z": 1392,
+              "slot_index": 0,
+              "x": 0,
+              "y": 0,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "gate_proj",
+              "logical_cube_rotated": false
+            },
+            "up": {
+              "virtual_cube_id": 44723,
+              "virtual_plane_id": 22361,
+              "virtual_slot_id": 44723,
+              "subcube_id": 10,
+              "z": 1396,
+              "slot_index": 1,
+              "x": 0,
+              "y": 2048,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "up_proj",
+              "logical_cube_rotated": false
+            },
+            "down": {
+              "virtual_cube_id": 44721,
+              "virtual_plane_id": 22360,
+              "virtual_slot_id": 44721,
+              "subcube_id": 1,
+              "z": 1392,
+              "slot_index": 1,
+              "x": 0,
+              "y": 2048,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "down_proj",
+              "logical_cube_rotated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "layer_id": 54,
+      "experts": [
+        17,
+        108
+      ],
+      "pair_duplicate_pressure": 13684,
+      "pair_total_hits": 15403,
+      "pair_duplicate_batches": 1635,
+      "pair_max_hits_in_batch": 21,
+      "members": [
+        {
+          "layer_id": 54,
+          "expert_id": 17,
+          "replica_id": 1,
+          "selection_stats": {
+            "total_hits": 15264,
+            "duplicate_pressure": 13648,
+            "duplicate_batches": 1615,
+            "max_hits_in_batch": 21
+          },
+          "base_copy": {
+            "gate_down_subcube_id": 13,
+            "up_subcube_id": 5
+          },
+          "replica_copy": {
+            "gate": {
+              "virtual_cube_id": 44724,
+              "virtual_plane_id": 22362,
+              "virtual_slot_id": 44724,
+              "subcube_id": 1,
+              "z": 1393,
+              "slot_index": 0,
+              "x": 0,
+              "y": 0,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "gate_proj",
+              "logical_cube_rotated": false
+            },
+            "up": {
+              "virtual_cube_id": 44728,
+              "virtual_plane_id": 22364,
+              "virtual_slot_id": 44728,
+              "subcube_id": 10,
+              "z": 1397,
+              "slot_index": 0,
+              "x": 0,
+              "y": 0,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "up_proj",
+              "logical_cube_rotated": false
+            },
+            "down": {
+              "virtual_cube_id": 44725,
+              "virtual_plane_id": 22362,
+              "virtual_slot_id": 44725,
+              "subcube_id": 1,
+              "z": 1393,
+              "slot_index": 1,
+              "x": 0,
+              "y": 2048,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "down_proj",
+              "logical_cube_rotated": true
+            }
+          }
+        },
+        {
+          "layer_id": 54,
+          "expert_id": 108,
+          "replica_id": 1,
+          "selection_stats": {
+            "total_hits": 139,
+            "duplicate_pressure": 36,
+            "duplicate_batches": 20,
+            "max_hits_in_batch": 7
+          },
+          "base_copy": {
+            "gate_down_subcube_id": 14,
+            "up_subcube_id": 5
+          },
+          "replica_copy": {
+            "gate": {
+              "virtual_cube_id": 44726,
+              "virtual_plane_id": 22363,
+              "virtual_slot_id": 44726,
+              "subcube_id": 1,
+              "z": 1394,
+              "slot_index": 0,
+              "x": 0,
+              "y": 0,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "gate_proj",
+              "logical_cube_rotated": false
+            },
+            "up": {
+              "virtual_cube_id": 44729,
+              "virtual_plane_id": 22364,
+              "virtual_slot_id": 44729,
+              "subcube_id": 10,
+              "z": 1397,
+              "slot_index": 1,
+              "x": 0,
+              "y": 2048,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "up_proj",
+              "logical_cube_rotated": false
+            },
+            "down": {
+              "virtual_cube_id": 44727,
+              "virtual_plane_id": 22363,
+              "virtual_slot_id": 44727,
+              "subcube_id": 1,
+              "z": 1394,
+              "slot_index": 1,
+              "x": 0,
+              "y": 2048,
+              "slot_rows": 7168,
+              "slot_cols": 2048,
+              "matrix_name": "down_proj",
+              "logical_cube_rotated": true
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "replicas": [
+    {
+      "layer_id": 21,
+      "expert_id": 114,
+      "replica_id": 1,
+      "selection_stats": {
+        "total_hits": 81,
+        "duplicate_pressure": 29,
+        "duplicate_batches": 11,
+        "max_hits_in_batch": 13
+      },
+      "base_copy": {
+        "gate_down_subcube_id": 5,
+        "up_subcube_id": 8
+      },
+      "replica_copy": {
+        "gate": {
+          "virtual_cube_id": 44718,
+          "virtual_plane_id": 22359,
+          "virtual_slot_id": 44718,
+          "subcube_id": 1,
+          "z": 1391,
+          "slot_index": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "gate_proj",
+          "logical_cube_rotated": false
+        },
+        "up": {
+          "virtual_cube_id": 44722,
+          "virtual_plane_id": 22361,
+          "virtual_slot_id": 44722,
+          "subcube_id": 10,
+          "z": 1396,
+          "slot_index": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "up_proj",
+          "logical_cube_rotated": false
+        },
+        "down": {
+          "virtual_cube_id": 44719,
+          "virtual_plane_id": 22359,
+          "virtual_slot_id": 44719,
+          "subcube_id": 1,
+          "z": 1391,
+          "slot_index": 1,
+          "x": 0,
+          "y": 2048,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "down_proj",
+          "logical_cube_rotated": true
+        }
+      }
+    },
+    {
+      "layer_id": 21,
+      "expert_id": 205,
+      "replica_id": 1,
+      "selection_stats": {
+        "total_hits": 17669,
+        "duplicate_pressure": 16053,
+        "duplicate_batches": 1615,
+        "max_hits_in_batch": 24
+      },
+      "base_copy": {
+        "gate_down_subcube_id": 7,
+        "up_subcube_id": 8
+      },
+      "replica_copy": {
+        "gate": {
+          "virtual_cube_id": 44720,
+          "virtual_plane_id": 22360,
+          "virtual_slot_id": 44720,
+          "subcube_id": 1,
+          "z": 1392,
+          "slot_index": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "gate_proj",
+          "logical_cube_rotated": false
+        },
+        "up": {
+          "virtual_cube_id": 44723,
+          "virtual_plane_id": 22361,
+          "virtual_slot_id": 44723,
+          "subcube_id": 10,
+          "z": 1396,
+          "slot_index": 1,
+          "x": 0,
+          "y": 2048,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "up_proj",
+          "logical_cube_rotated": false
+        },
+        "down": {
+          "virtual_cube_id": 44721,
+          "virtual_plane_id": 22360,
+          "virtual_slot_id": 44721,
+          "subcube_id": 1,
+          "z": 1392,
+          "slot_index": 1,
+          "x": 0,
+          "y": 2048,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "down_proj",
+          "logical_cube_rotated": true
+        }
+      }
+    },
+    {
+      "layer_id": 54,
+      "expert_id": 17,
+      "replica_id": 1,
+      "selection_stats": {
+        "total_hits": 15264,
+        "duplicate_pressure": 13648,
+        "duplicate_batches": 1615,
+        "max_hits_in_batch": 21
+      },
+      "base_copy": {
+        "gate_down_subcube_id": 13,
+        "up_subcube_id": 5
+      },
+      "replica_copy": {
+        "gate": {
+          "virtual_cube_id": 44724,
+          "virtual_plane_id": 22362,
+          "virtual_slot_id": 44724,
+          "subcube_id": 1,
+          "z": 1393,
+          "slot_index": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "gate_proj",
+          "logical_cube_rotated": false
+        },
+        "up": {
+          "virtual_cube_id": 44728,
+          "virtual_plane_id": 22364,
+          "virtual_slot_id": 44728,
+          "subcube_id": 10,
+          "z": 1397,
+          "slot_index": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "up_proj",
+          "logical_cube_rotated": false
+        },
+        "down": {
+          "virtual_cube_id": 44725,
+          "virtual_plane_id": 22362,
+          "virtual_slot_id": 44725,
+          "subcube_id": 1,
+          "z": 1393,
+          "slot_index": 1,
+          "x": 0,
+          "y": 2048,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "down_proj",
+          "logical_cube_rotated": true
+        }
+      }
+    },
+    {
+      "layer_id": 54,
+      "expert_id": 108,
+      "replica_id": 1,
+      "selection_stats": {
+        "total_hits": 139,
+        "duplicate_pressure": 36,
+        "duplicate_batches": 20,
+        "max_hits_in_batch": 7
+      },
+      "base_copy": {
+        "gate_down_subcube_id": 14,
+        "up_subcube_id": 5
+      },
+      "replica_copy": {
+        "gate": {
+          "virtual_cube_id": 44726,
+          "virtual_plane_id": 22363,
+          "virtual_slot_id": 44726,
+          "subcube_id": 1,
+          "z": 1394,
+          "slot_index": 0,
+          "x": 0,
+          "y": 0,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "gate_proj",
+          "logical_cube_rotated": false
+        },
+        "up": {
+          "virtual_cube_id": 44729,
+          "virtual_plane_id": 22364,
+          "virtual_slot_id": 44729,
+          "subcube_id": 10,
+          "z": 1397,
+          "slot_index": 1,
+          "x": 0,
+          "y": 2048,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "up_proj",
+          "logical_cube_rotated": false
+        },
+        "down": {
+          "virtual_cube_id": 44727,
+          "virtual_plane_id": 22363,
+          "virtual_slot_id": 44727,
+          "subcube_id": 1,
+          "z": 1394,
+          "slot_index": 1,
+          "x": 0,
+          "y": 2048,
+          "slot_rows": 7168,
+          "slot_cols": 2048,
+          "matrix_name": "down_proj",
+          "logical_cube_rotated": true
+        }
+      }
+    }
+  ],
+  "top_candidate_pairs": [
+    {
+      "rank": 1,
+      "layer_id": 21,
+      "experts": [
+        114,
+        205
+      ],
+      "duplicate_pressure": 16082,
+      "total_hits": 17750,
+      "duplicate_batches": 1626,
+      "max_hits_in_batch": 24,
+      "base_subcubes": [
+        [
+          5,
+          8
+        ],
+        [
+          7,
+          8
+        ]
+      ]
+    },
+    {
+      "rank": 2,
+      "layer_id": 54,
+      "experts": [
+        17,
+        108
+      ],
+      "duplicate_pressure": 13684,
+      "total_hits": 15403,
+      "duplicate_batches": 1635,
+      "max_hits_in_batch": 21,
+      "base_subcubes": [
+        [
+          13,
+          5
+        ],
+        [
+          14,
+          5
+        ]
+      ]
+    },
+    {
+      "rank": 3,
+      "layer_id": 39,
+      "experts": [
+        7,
+        234
+      ],
+      "duplicate_pressure": 12950,
+      "total_hits": 14647,
+      "duplicate_batches": 1641,
+      "max_hits_in_batch": 24,
+      "base_subcubes": [
+        [
+          14,
+          3
+        ],
+        [
+          14,
+          3
+        ]
+      ]
+    },
+    {
+      "rank": 4,
+      "layer_id": 55,
+      "experts": [
+        1,
+        114
+      ],
+      "duplicate_pressure": 10160,
+      "total_hits": 11845,
+      "duplicate_batches": 1590,
+      "max_hits_in_batch": 19,
+      "base_subcubes": [
+        [
+          15,
+          0
+        ],
+        [
+          9,
+          0
+        ]
+      ]
+    },
+    {
+      "rank": 5,
+      "layer_id": 31,
+      "experts": [
+        43,
+        198
+      ],
+      "duplicate_pressure": 9772,
+      "total_hits": 11468,
+      "duplicate_batches": 1621,
+      "max_hits_in_batch": 24,
+      "base_subcubes": [
+        [
+          11,
+          0
+        ],
+        [
+          11,
+          0
+        ]
+      ]
+    },
+    {
+      "rank": 6,
+      "layer_id": 44,
+      "experts": [
+        113,
+        218
+      ],
+      "duplicate_pressure": 9702,
+      "total_hits": 11269,
+      "duplicate_batches": 1242,
+      "max_hits_in_batch": 34,
+      "base_subcubes": [
+        [
+          4,
+          2
+        ],
+        [
+          14,
+          2
+        ]
+      ]
+    },
+    {
+      "rank": 7,
+      "layer_id": 47,
+      "experts": [
+        85,
+        169
+      ],
+      "duplicate_pressure": 9291,
+      "total_hits": 10965,
+      "duplicate_batches": 1572,
+      "max_hits_in_batch": 19,
+      "base_subcubes": [
+        [
+          11,
+          0
+        ],
+        [
+          9,
+          0
+        ]
+      ]
+    },
+    {
+      "rank": 8,
+      "layer_id": 14,
+      "experts": [
+        146,
+        205
+      ],
+      "duplicate_pressure": 9243,
+      "total_hits": 10895,
+      "duplicate_batches": 1586,
+      "max_hits_in_batch": 19,
+      "base_subcubes": [
+        [
+          8,
+          13
+        ],
+        [
+          3,
+          13
+        ]
+      ]
+    },
+    {
+      "rank": 9,
+      "layer_id": 41,
+      "experts": [
+        23,
+        171
+      ],
+      "duplicate_pressure": 9232,
+      "total_hits": 10954,
+      "duplicate_batches": 1606,
+      "max_hits_in_batch": 22,
+      "base_subcubes": [
+        [
+          4,
+          11
+        ],
+        [
+          7,
+          11
+        ]
+      ]
+    },
+    {
+      "rank": 10,
+      "layer_id": 34,
+      "experts": [
+        115,
+        220
+      ],
+      "duplicate_pressure": 9159,
+      "total_hits": 10832,
+      "duplicate_batches": 1564,
+      "max_hits_in_batch": 36,
+      "base_subcubes": [
+        [
+          14,
+          8
+        ],
+        [
+          9,
+          8
+        ]
+      ]
+    },
+    {
+      "rank": 11,
+      "layer_id": 29,
+      "experts": [
+        6,
+        58
+      ],
+      "duplicate_pressure": 8795,
+      "total_hits": 10455,
+      "duplicate_batches": 1593,
+      "max_hits_in_batch": 21,
+      "base_subcubes": [
+        [
+          5,
+          15
+        ],
+        [
+          2,
+          15
+        ]
+      ]
+    },
+    {
+      "rank": 12,
+      "layer_id": 14,
+      "experts": [
+        47,
+        215
+      ],
+      "duplicate_pressure": 8676,
+      "total_hits": 10316,
+      "duplicate_batches": 1534,
+      "max_hits_in_batch": 39,
+      "base_subcubes": [
+        [
+          13,
+          9
+        ],
+        [
+          2,
+          9
+        ]
+      ]
+    },
+    {
+      "rank": 13,
+      "layer_id": 6,
+      "experts": [
+        154,
+        218
+      ],
+      "duplicate_pressure": 8470,
+      "total_hits": 10184,
+      "duplicate_batches": 1598,
+      "max_hits_in_batch": 26,
+      "base_subcubes": [
+        [
+          12,
+          4
+        ],
+        [
+          2,
+          4
+        ]
+      ]
+    },
+    {
+      "rank": 14,
+      "layer_id": 18,
+      "experts": [
+        0,
+        190
+      ],
+      "duplicate_pressure": 8333,
+      "total_hits": 9997,
+      "duplicate_batches": 1624,
+      "max_hits_in_batch": 20,
+      "base_subcubes": [
+        [
+          13,
+          9
+        ],
+        [
+          12,
+          9
+        ]
+      ]
+    },
+    {
+      "rank": 15,
+      "layer_id": 11,
+      "experts": [
+        154,
+        206
+      ],
+      "duplicate_pressure": 7952,
+      "total_hits": 9660,
+      "duplicate_batches": 1619,
+      "max_hits_in_batch": 24,
+      "base_subcubes": [
+        [
+          7,
+          3
+        ],
+        [
+          6,
+          3
+        ]
+      ]
+    },
+    {
+      "rank": 16,
+      "layer_id": 9,
+      "experts": [
+        83,
+        183
+      ],
+      "duplicate_pressure": 7679,
+      "total_hits": 9415,
+      "duplicate_batches": 1625,
+      "max_hits_in_batch": 14,
+      "base_subcubes": [
+        [
+          2,
+          12
+        ],
+        [
+          13,
+          12
+        ]
+      ]
+    },
+    {
+      "rank": 17,
+      "layer_id": 25,
+      "experts": [
+        18,
+        182
+      ],
+      "duplicate_pressure": 7387,
+      "total_hits": 8968,
+      "duplicate_batches": 1387,
+      "max_hits_in_batch": 34,
+      "base_subcubes": [
+        [
+          4,
+          11
+        ],
+        [
+          7,
+          11
+        ]
+      ]
+    },
+    {
+      "rank": 18,
+      "layer_id": 49,
+      "experts": [
+        189,
+        242
+      ],
+      "duplicate_pressure": 7289,
+      "total_hits": 8971,
+      "duplicate_batches": 1617,
+      "max_hits_in_batch": 21,
+      "base_subcubes": [
+        [
+          7,
+          4
+        ],
+        [
+          0,
+          4
+        ]
+      ]
+    },
+    {
+      "rank": 19,
+      "layer_id": 56,
+      "experts": [
+        23,
+        150
+      ],
+      "duplicate_pressure": 7220,
+      "total_hits": 8614,
+      "duplicate_batches": 1123,
+      "max_hits_in_batch": 37,
+      "base_subcubes": [
+        [
+          11,
+          8
+        ],
+        [
+          13,
+          8
+        ]
+      ]
+    },
+    {
+      "rank": 20,
+      "layer_id": 52,
+      "experts": [
+        16,
+        218
+      ],
+      "duplicate_pressure": 7062,
+      "total_hits": 9578,
+      "duplicate_batches": 1580,
+      "max_hits_in_batch": 19,
+      "base_subcubes": [
+        [
+          3,
+          5
+        ],
+        [
+          11,
+          5
+        ]
+      ]
+    }
+  ]
+}

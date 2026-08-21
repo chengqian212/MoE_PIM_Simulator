@@ -125,6 +125,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import random
 from typing import Iterable
 
 from mapping.logical_plane import (
@@ -162,13 +163,23 @@ class PlanePairingError(ValueError):
 # ============================================================
 
 
-PAIRING_MODE_TRACE_AWARE = "trace_aware"
 PAIRING_MODE_SEQUENTIAL = "sequential"
+PAIRING_MODE_RANDOM = "random"
+PAIRING_MODE_FREQUENCY_AWARE = "frequency_aware"
+PAIRING_MODE_GREEDY = "greedy"
+PAIRING_MODE_TRACE_AWARE = "trace_aware"
+PAIRING_MODE_OPTIMAL = "optimal"
 
 PAIRING_MODES = (
-    PAIRING_MODE_TRACE_AWARE,
     PAIRING_MODE_SEQUENTIAL,
+    PAIRING_MODE_RANDOM,
+    PAIRING_MODE_FREQUENCY_AWARE,
+    PAIRING_MODE_GREEDY,
+    PAIRING_MODE_TRACE_AWARE,
+    PAIRING_MODE_OPTIMAL,
 )
+
+DEFAULT_PAIRING_RANDOM_SEED = 42
 
 
 # ============================================================
@@ -577,6 +588,425 @@ def sequential_pair_routed_up_experts(
             2,
         )
     )
+
+
+# ============================================================
+# Routed up 随机配对（Random Baseline）
+# ============================================================
+
+
+def random_pair_routed_up_experts(
+    *,
+    layer_id: int,
+    seed: int = DEFAULT_PAIRING_RANDOM_SEED,
+) -> tuple[
+    tuple[int, int],
+    ...
+]:
+    """
+    对某一层 256 个 Routed up 做可复现随机配对。
+
+    Random Baseline 不读取 frequency / coactivation。
+    为保证实验可复现，每层使用：
+
+        effective_seed = seed + layer_id
+
+    相同 seed 下结果必须完全一致。
+    """
+
+    if not (
+        0
+        <= layer_id
+        < NUM_MOE_LAYERS
+    ):
+        raise PlanePairingError(
+            "layer_id 必须位于 "
+            f"[0,{NUM_MOE_LAYERS - 1}]。"
+        )
+
+    if NUM_ROUTED_EXPERTS % 2 != 0:
+        raise PlanePairingError(
+            "Random Pairing 要求 Routed Expert 数量为偶数。"
+        )
+
+    rng = random.Random(
+        int(seed) + layer_id
+    )
+
+    experts = list(
+        range(NUM_ROUTED_EXPERTS)
+    )
+
+    rng.shuffle(experts)
+
+    pairs = [
+        (
+            min(experts[i], experts[i + 1]),
+            max(experts[i], experts[i + 1]),
+        )
+        for i in range(
+            0,
+            NUM_ROUTED_EXPERTS,
+            2,
+        )
+    ]
+
+    return tuple(pairs)
+
+
+# ============================================================
+# Routed up Frequency-aware 配对
+# ============================================================
+
+
+def frequency_aware_pair_routed_up_experts(
+    *,
+    layer_id: int,
+    profile: TraceProfile,
+) -> tuple[
+    tuple[int, int],
+    ...
+]:
+    """
+    只使用 Expert 访问频率，不使用共激活矩阵。
+
+    规则：
+
+        hottest + coldest
+        second hottest + second coldest
+        ...
+
+    目的：
+    将高频 Expert 与低频 Expert 组成同一 up-up Plane，
+    作为“仅使用热度信息”的 Pairing baseline。
+
+    该方法不读取 G(a,b)，因此可用于区分：
+
+        仅知道 Expert 热度
+            vs
+        真正使用 Expert 共激活关系
+
+    的差别。
+    """
+
+    if not (
+        0
+        <= layer_id
+        < NUM_MOE_LAYERS
+    ):
+        raise PlanePairingError(
+            "layer_id 必须位于 "
+            f"[0,{NUM_MOE_LAYERS - 1}]。"
+        )
+
+    ranked = sorted(
+        range(NUM_ROUTED_EXPERTS),
+        key=lambda expert_id: (
+            -_frequency(
+                profile,
+                layer_id,
+                expert_id,
+            ),
+            expert_id,
+        ),
+    )
+
+    pairs: list[
+        tuple[int, int]
+    ] = []
+
+    left = 0
+    right = len(ranked) - 1
+
+    while left < right:
+        a = ranked[left]
+        b = ranked[right]
+
+        pairs.append(
+            (
+                min(a, b),
+                max(a, b),
+            )
+        )
+
+        left += 1
+        right -= 1
+
+    if len(pairs) * 2 != NUM_ROUTED_EXPERTS:
+        raise PlanePairingError(
+            f"Layer-{layer_id} Frequency-aware Pairing 数量错误。"
+        )
+
+    return tuple(pairs)
+
+
+# ============================================================
+# Routed up Minimum-Weight Perfect Matching
+# ============================================================
+
+
+def optimal_pair_routed_up_experts(
+    *,
+    layer_id: int,
+    profile: TraceProfile,
+) -> tuple[
+    tuple[int, int],
+    ...
+]:
+    """
+    求解当前层 Pairing Cost 的全局最优完美匹配：
+
+        min sum G(a,b)
+
+    每个 Routed Expert 恰好出现一次。
+
+    优先使用 SciPy/HiGHS MILP（通常明显快于纯 Python
+    Blossom）；如果当前环境没有 scipy.optimize.milp，
+    再回退到 NetworkX minimum-weight matching。
+
+    注意：这里最优的是 Pairing Cost 中间目标，
+    不等价于最终 Prefill / Decode latency 的全局最优。
+    """
+
+    if not (
+        0
+        <= layer_id
+        < NUM_MOE_LAYERS
+    ):
+        raise PlanePairingError(
+            "layer_id 必须位于 "
+            f"[0,{NUM_MOE_LAYERS - 1}]。"
+        )
+
+    # --------------------------------------------------------
+    # 构造无向完全图边表
+    # --------------------------------------------------------
+
+    edges: list[
+        tuple[int, int]
+    ] = []
+
+    primary_costs: list[int] = []
+
+    for expert_a in range(
+        NUM_ROUTED_EXPERTS - 1
+    ):
+        for expert_b in range(
+            expert_a + 1,
+            NUM_ROUTED_EXPERTS,
+        ):
+            edges.append(
+                (
+                    expert_a,
+                    expert_b,
+                )
+            )
+
+            primary_costs.append(
+                _coactivation_cost(
+                    profile,
+                    layer_id,
+                    expert_a,
+                    expert_b,
+                )
+            )
+
+    # 128 条匹配边的 tie-break 总和最大约 8.4M。
+    # 10M 可以保证 coactivation cost 永远是主目标。
+    primary_scale = 10_000_000
+
+    objective = [
+        (
+            primary * primary_scale
+            + expert_a * NUM_ROUTED_EXPERTS
+            + expert_b
+        )
+        for (
+            primary,
+            (expert_a, expert_b),
+        ) in zip(
+            primary_costs,
+            edges,
+        )
+    ]
+
+    # --------------------------------------------------------
+    # 首选：SciPy MILP / HiGHS
+    # --------------------------------------------------------
+
+    pairs: tuple[
+        tuple[int, int],
+        ...
+    ] | None = None
+
+    try:
+        import numpy as np
+        from scipy.optimize import (
+            Bounds,
+            LinearConstraint,
+            milp,
+        )
+        from scipy.sparse import coo_matrix
+
+        row_indices: list[int] = []
+        col_indices: list[int] = []
+        values: list[int] = []
+
+        for edge_id, (
+            expert_a,
+            expert_b,
+        ) in enumerate(edges):
+            row_indices.extend(
+                (
+                    expert_a,
+                    expert_b,
+                )
+            )
+            col_indices.extend(
+                (
+                    edge_id,
+                    edge_id,
+                )
+            )
+            values.extend((1, 1))
+
+        incidence = coo_matrix(
+            (
+                values,
+                (
+                    row_indices,
+                    col_indices,
+                ),
+            ),
+            shape=(
+                NUM_ROUTED_EXPERTS,
+                len(edges),
+            ),
+        ).tocsr()
+
+        ones = np.ones(
+            NUM_ROUTED_EXPERTS,
+            dtype=float,
+        )
+
+        result = milp(
+            c=np.asarray(
+                objective,
+                dtype=float,
+            ),
+            integrality=np.ones(
+                len(edges),
+                dtype=np.int8,
+            ),
+            bounds=Bounds(
+                np.zeros(len(edges)),
+                np.ones(len(edges)),
+            ),
+            constraints=LinearConstraint(
+                incidence,
+                ones,
+                ones,
+            ),
+            options={
+                "presolve": True,
+            },
+        )
+
+        if (
+            result.success
+            and result.x is not None
+        ):
+            selected = [
+                edges[edge_id]
+                for edge_id, value
+                in enumerate(result.x)
+                if value > 0.5
+            ]
+
+            pairs = tuple(
+                sorted(selected)
+            )
+
+    except (
+        ImportError,
+        AttributeError,
+    ):
+        pairs = None
+
+    # --------------------------------------------------------
+    # 回退：NetworkX Blossom
+    # --------------------------------------------------------
+
+    if pairs is None:
+        try:
+            import networkx as nx
+        except ImportError as exc:
+            raise PlanePairingError(
+                "optimal Pairing 需要 scipy>=1.9 或 networkx。"
+                "建议先执行：pip install scipy networkx"
+            ) from exc
+
+        graph = nx.Graph()
+        graph.add_nodes_from(
+            range(NUM_ROUTED_EXPERTS)
+        )
+
+        for (
+            (expert_a, expert_b),
+            weight,
+        ) in zip(
+            edges,
+            objective,
+        ):
+            graph.add_edge(
+                expert_a,
+                expert_b,
+                weight=weight,
+            )
+
+        matching = (
+            nx.algorithms.matching
+            .min_weight_matching(
+                graph,
+                weight="weight",
+            )
+        )
+
+        pairs = tuple(
+            sorted(
+                (
+                    min(int(a), int(b)),
+                    max(int(a), int(b)),
+                )
+                for a, b in matching
+            )
+        )
+
+    # --------------------------------------------------------
+    # 完美匹配检查
+    # --------------------------------------------------------
+
+    if len(pairs) != NUM_ROUTED_EXPERTS // 2:
+        raise PlanePairingError(
+            f"Layer-{layer_id} Optimal Pairing 未得到完美匹配："
+            f"pairs={len(pairs)}。"
+        )
+
+    flat = [
+        expert_id
+        for pair in pairs
+        for expert_id in pair
+    ]
+
+    if (
+        len(flat) != NUM_ROUTED_EXPERTS
+        or len(set(flat)) != NUM_ROUTED_EXPERTS
+    ):
+        raise PlanePairingError(
+            f"Layer-{layer_id} Optimal Pairing Expert 覆盖错误。"
+        )
+
+    return pairs
 
 
 # ============================================================
@@ -1163,6 +1593,7 @@ def build_logical_planes(
     ),
     improve_pairs: bool = True,
     local_search_rounds: int = 4,
+    random_seed: int = DEFAULT_PAIRING_RANDOM_SEED,
 ) -> PairingResult:
     """
     构造完整的 22359 个 LogicalPlane。
@@ -1177,13 +1608,18 @@ def build_logical_planes(
 
     pairing_mode：
 
-        trace_aware：
-            使用 Trace-aware Greedy；
-            improve_pairs=True 时再执行 Local Search。
+        sequential：固定编号顺序配对。
 
-        sequential：
-            固定 E0-E1、E2-E3 ... E254-E255；
-            不使用 Trace 参与配对决策。
+        random：固定 seed 的随机配对。
+
+        frequency_aware：只使用 Expert 访问频率。
+
+        greedy：只使用共激活感知 Greedy。
+
+        trace_aware：Greedy + 可选 Local Search。
+
+        optimal：Minimum-Weight Perfect Matching，
+            对 Pairing Cost 给出全局最优参考。
 
     improve_pairs：
 
@@ -1436,19 +1872,52 @@ def build_logical_planes(
             == PAIRING_MODE_SEQUENTIAL
         ):
 
-            # 不使用 Trace 参与决策：
-            # E0-E1, E2-E3, ...
             pairs = (
                 sequential_pair_routed_up_experts(
                     layer_id=layer_id,
                 )
             )
 
-        else:
+        elif (
+            pairing_mode
+            == PAIRING_MODE_RANDOM
+        ):
 
-            # ================================================
-            # Trace-aware Greedy
-            # ================================================
+            pairs = (
+                random_pair_routed_up_experts(
+                    layer_id=layer_id,
+                    seed=random_seed,
+                )
+            )
+
+        elif (
+            pairing_mode
+            == PAIRING_MODE_FREQUENCY_AWARE
+        ):
+
+            pairs = (
+                frequency_aware_pair_routed_up_experts(
+                    layer_id=layer_id,
+                    profile=profile,
+                )
+            )
+
+        elif (
+            pairing_mode
+            == PAIRING_MODE_OPTIMAL
+        ):
+
+            pairs = (
+                optimal_pair_routed_up_experts(
+                    layer_id=layer_id,
+                    profile=profile,
+                )
+            )
+
+        elif pairing_mode in (
+            PAIRING_MODE_GREEDY,
+            PAIRING_MODE_TRACE_AWARE,
+        ):
 
             pairs = (
                 greedy_pair_routed_up_experts(
@@ -1457,11 +1926,13 @@ def build_logical_planes(
                 )
             )
 
-            # ================================================
-            # Local Search
-            # ================================================
-
-            if improve_pairs:
+            # greedy 模式明确只做初始 Greedy。
+            # trace_aware 才允许继续 Local Search。
+            if (
+                pairing_mode
+                == PAIRING_MODE_TRACE_AWARE
+                and improve_pairs
+            ):
 
                 pairs = (
                     improve_routed_up_pairs(
@@ -1473,6 +1944,11 @@ def build_logical_planes(
                         ),
                     )
                 )
+
+        else:
+            raise PlanePairingError(
+                f"未实现 pairing_mode={pairing_mode!r}。"
+            )
 
         # ====================================================
         # 记录 Cost

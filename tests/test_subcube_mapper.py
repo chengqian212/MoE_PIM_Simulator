@@ -19,6 +19,9 @@ from mapping.plane_pairer import (
 )
 
 from mapping.subcube_mapper import (
+    MAPPING_MODE_FREQUENCY_AWARE,
+    MAPPING_MODE_LEAST_LOADED,
+    MAPPING_MODE_RANDOM,
     MAPPING_MODE_ROUND_ROBIN,
     MAPPING_MODE_TRACE_AWARE,
     map_logical_planes_to_subcubes,
@@ -687,3 +690,126 @@ def test_round_robin_decision_does_not_depend_on_trace(
         hot_locations
         == base_locations
     )
+
+
+# ============================================================
+# 新增 Mapping baseline：结构合法性
+# ============================================================
+
+
+@pytest.fixture(
+    scope="module",
+    params=(
+        MAPPING_MODE_RANDOM,
+        MAPPING_MODE_LEAST_LOADED,
+        MAPPING_MODE_FREQUENCY_AWARE,
+    ),
+)
+def additional_mapping_result(request):
+    config = ModelConfig(include_shared_expert=True)
+    cubes = build_logical_weight_cubes(config)
+    profile = build_fake_profile()
+    pairing = build_logical_planes(
+        cubes=cubes,
+        profile=profile,
+        improve_pairs=False,
+    )
+    hardware = ResolvedHardwareConfig(
+        N=4,
+        H=7168,
+        W=4096,
+        D=1398,
+    )
+    result = map_logical_planes_to_subcubes(
+        pairing=pairing,
+        cubes=cubes,
+        profile=profile,
+        hardware=hardware,
+        mapping_mode=request.param,
+        random_seed=42,
+    )
+    return request.param, cubes, pairing, hardware, result
+
+
+def test_additional_modes_complete_and_fit(additional_mapping_result):
+    _mode, _cubes, _pairing, hardware, result = additional_mapping_result
+    assert result.total_planes == 22359
+    assert sum(result.subcube_plane_counts) == 22359
+    assert max(result.subcube_plane_counts) <= hardware.D
+    assert result.empty_plane_slots == 9
+
+
+def test_additional_modes_gate_up_separated(additional_mapping_result):
+    _mode, cubes, pairing, _hardware, result = additional_mapping_result
+
+    from mapping.logical_plane import build_cube_index, get_plane_cubes
+    from mapping.logical_weight import MATRIX_GATE, MATRIX_UP
+
+    cube_index = build_cube_index(cubes)
+    placement_by_id = {
+        placement.logical_plane_id: placement
+        for placement in result.placements
+    }
+    gate_sc = {}
+    up_sc = {}
+
+    for plane in pairing.planes:
+        sc = placement_by_id[plane.logical_plane_id].subcube_id
+        cube_a, cube_b = get_plane_cubes(
+            plane=plane,
+            cube_index=cube_index,
+        )
+        for cube in (cube_a, cube_b):
+            key = (cube.layer_id, cube.expert_id)
+            if cube.matrix_name == MATRIX_GATE:
+                gate_sc[key] = sc
+            elif cube.matrix_name == MATRIX_UP:
+                up_sc[key] = sc
+
+    assert len(gate_sc) == 58 * 257
+    assert len(up_sc) == 58 * 257
+    assert all(gate_sc[key] != up_sc[key] for key in gate_sc)
+
+
+def test_random_mapping_is_reproducible():
+    config = ModelConfig(include_shared_expert=True)
+    cubes = build_logical_weight_cubes(config)
+    profile = build_fake_profile()
+    pairing = build_logical_planes(
+        cubes=cubes,
+        profile=profile,
+        improve_pairs=False,
+    )
+    hardware = ResolvedHardwareConfig(
+        N=4,
+        H=7168,
+        W=4096,
+        D=1398,
+    )
+
+    first = map_logical_planes_to_subcubes(
+        pairing=pairing,
+        cubes=cubes,
+        profile=profile,
+        hardware=hardware,
+        mapping_mode=MAPPING_MODE_RANDOM,
+        random_seed=123,
+    )
+    second = map_logical_planes_to_subcubes(
+        pairing=pairing,
+        cubes=cubes,
+        profile=profile,
+        hardware=hardware,
+        mapping_mode=MAPPING_MODE_RANDOM,
+        random_seed=123,
+    )
+
+    first_locations = tuple(
+        (placement.subcube_id, placement.z)
+        for placement in first.placements
+    )
+    second_locations = tuple(
+        (placement.subcube_id, placement.z)
+        for placement in second.placements
+    )
+    assert first_locations == second_locations

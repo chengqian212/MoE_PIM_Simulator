@@ -83,6 +83,8 @@
 
 from __future__ import annotations
 
+import random
+
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -129,12 +131,20 @@ SHARED_EXPERT_ID = (
 # ============================================================
 
 
-MAPPING_MODE_TRACE_AWARE = "trace_aware"
+MAPPING_MODE_RANDOM = "random"
 MAPPING_MODE_ROUND_ROBIN = "round_robin"
+MAPPING_MODE_LEAST_LOADED = "least_loaded"
+MAPPING_MODE_FREQUENCY_AWARE = "frequency_aware"
+MAPPING_MODE_TRACE_AWARE = "trace_aware"
+
+DEFAULT_MAPPING_RANDOM_SEED = 42
 
 MAPPING_MODES = (
-    MAPPING_MODE_TRACE_AWARE,
+    MAPPING_MODE_RANDOM,
     MAPPING_MODE_ROUND_ROBIN,
+    MAPPING_MODE_LEAST_LOADED,
+    MAPPING_MODE_FREQUENCY_AWARE,
+    MAPPING_MODE_TRACE_AWARE,
 )
 
 
@@ -1214,6 +1224,110 @@ def _up_plane_sort_key(
 
 
 # ============================================================
+# up Plane 容量可行性保护
+# ============================================================
+
+
+def _up_forbidden_subcubes(
+    *,
+    members: tuple[
+        tuple[int, int],
+        tuple[int, int],
+    ],
+    gate_down_subcube: list[list[int]],
+) -> frozenset[int]:
+    """
+    返回当前 up+up Plane 不能进入的 Sub-Cube 集合。
+
+    每张 up+up Plane 只有两个成员，因此 forbidden 集合大小最多为 2。
+    这个性质允许后续使用一个很便宜的 Hall 可行性检查，保证贪心映射
+    不会在接近容量上限时把后续 Plane 堵死。
+    """
+
+    forbidden = frozenset(
+        gate_down_subcube[layer_id][expert_id]
+        for layer_id, expert_id in members
+    )
+
+    if any(sc < 0 for sc in forbidden):
+        raise SubcubeMappingError(
+            "up Plane 计算 forbidden SC 时发现 gate/down 尚未完成映射。"
+        )
+
+    if len(forbidden) > 2:
+        raise SubcubeMappingError(
+            "当前 up+up Plane 的 forbidden SC 数量不应超过 2。"
+        )
+
+    return forbidden
+
+
+def _candidate_preserves_up_feasibility(
+    *,
+    candidate_sc: int,
+    plane_counts: list[int],
+    D: int,
+    remaining_plane_count: int,
+    remaining_forbidden_single: list[int],
+    remaining_forbidden_pair: list[list[int]],
+) -> bool:
+    """
+    检查把“当前 Plane”放进 candidate_sc 后，剩余 up Plane 是否仍可完成。
+
+    剩余每张 up Plane 最多禁止 2 个 SC。对这种特殊二分图，Hall 条件只需检查：
+
+    1. 所有剩余 Plane <= 全部剩余容量；
+    2. 对任意 SC a：所有禁止 a 的 Plane <= a 之外的剩余容量；
+    3. 对任意 SC 对 (a,b)：所有同时禁止 a,b 的 Plane
+       <= a,b 之外的剩余容量。
+
+    这样仍然让 trace-aware score 决定“哪个合法候选更好”，
+    但先过滤掉会把后续容量逼入死路的候选。
+    """
+
+    num_subcubes = len(plane_counts)
+
+    if not (0 <= candidate_sc < num_subcubes):
+        return False
+
+    if plane_counts[candidate_sc] >= D:
+        return False
+
+    capacities = [
+        D - count
+        for count in plane_counts
+    ]
+    capacities[candidate_sc] -= 1
+
+    if capacities[candidate_sc] < 0:
+        return False
+
+    total_capacity = sum(capacities)
+
+    if remaining_plane_count > total_capacity:
+        return False
+
+    # 所有“禁止 sc”的未来 Plane 都必须放到 sc 之外。
+    for sc in range(num_subcubes):
+        if (
+            remaining_forbidden_single[sc]
+            > total_capacity - capacities[sc]
+        ):
+            return False
+
+    # 所有“同时禁止 a,b”的未来 Plane 都必须放到 a,b 之外。
+    for a in range(num_subcubes):
+        for b in range(a + 1, num_subcubes):
+            if (
+                remaining_forbidden_pair[a][b]
+                > total_capacity - capacities[a] - capacities[b]
+            ):
+                return False
+
+    return True
+
+
+# ============================================================
 # up Plane 候选评分
 # ============================================================
 
@@ -1254,6 +1368,12 @@ def _choose_up_subcube(
     plane_counts: list[int],
 
     D: int,
+
+    # 下面三项描述“当前 Plane 之后”尚未放置的 up Plane。
+    # 用于容量可行性保护；不参与性能 score。
+    remaining_plane_count: int,
+    remaining_forbidden_single: list[int],
+    remaining_forbidden_pair: list[list[int]],
 ) -> int:
     """
     为一个 up+up Plane 选择 Sub-Cube。
@@ -1295,44 +1415,54 @@ def _choose_up_subcube(
     # Gate/Up 分离
     # ========================================================
 
-    forbidden = {
-        gate_down_subcube[
-            layer_id
-        ][
-            expert_id
-        ]
-
-        for (
-            layer_id,
-            expert_id,
-        )
-        in members
-    }
+    forbidden = _up_forbidden_subcubes(
+        members=members,
+        gate_down_subcube=gate_down_subcube,
+    )
 
     candidates = [
         sc
-
-        for sc
-        in range(
-            len(plane_counts)
-        )
-
+        for sc in range(len(plane_counts))
         if (
             sc not in forbidden
-            and
-            plane_counts[sc] < D
+            and plane_counts[sc] < D
         )
     ]
 
     if not candidates:
-
         raise SubcubeMappingError(
-            f"LogicalPlane-"
-            f"{plane.logical_plane_id} "
-            "不存在同时满足 "
-            "gate/up 分离和容量约束的 "
-            "Sub-Cube。"
+            f"LogicalPlane-{plane.logical_plane_id} "
+            "不存在同时满足 gate/up 分离和容量约束的 Sub-Cube。"
         )
+
+    # --------------------------------------------------------
+    # 关键修复：不能只看“当前能不能放”。
+    # 还要保证占掉这个槽位以后，未来受 forbidden 约束的 Plane 仍然有解。
+    # --------------------------------------------------------
+    feasible_candidates = [
+        sc
+        for sc in candidates
+        if _candidate_preserves_up_feasibility(
+            candidate_sc=sc,
+            plane_counts=plane_counts,
+            D=D,
+            remaining_plane_count=remaining_plane_count,
+            remaining_forbidden_single=remaining_forbidden_single,
+            remaining_forbidden_pair=remaining_forbidden_pair,
+        )
+    ]
+
+    if not feasible_candidates:
+        free_capacity = [D - count for count in plane_counts]
+        raise SubcubeMappingError(
+            f"LogicalPlane-{plane.logical_plane_id} 当前虽然存在局部合法 SC，"
+            "但所有选择都会破坏后续 up Plane 的容量可行性。"
+            f" forbidden={sorted(forbidden)}, "
+            f"remaining_planes={remaining_plane_count}, "
+            f"free_capacity={free_capacity}。"
+        )
+
+    candidates = feasible_candidates
 
     # ========================================================
     # 按 Layer 整理成员
@@ -1704,6 +1834,504 @@ def _calculate_conflicts(
         down_conflict,
     )
 
+
+
+
+# ============================================================
+# 非 Trace-aware Mapping 的统一受约束框架
+# ============================================================
+
+
+def _baseline_up_sort_key(
+    *,
+    plane: LogicalPlane,
+    cube_index: dict[int, LogicalWeightCube],
+    gate_down_subcube: list[list[int]],
+) -> tuple[int, int]:
+    """
+    Random / Round-Robin / Least-Loaded 不允许偷看 Trace。
+
+    但仍然可以优先放约束更强的 Plane：
+        forbidden SC 更多 -> 更早放。
+
+    这只是硬约束可行性排序，不使用 frequency/coactivation。
+    """
+
+    members = _extract_up_members(
+        plane=plane,
+        cube_index=cube_index,
+    )
+    forbidden = _up_forbidden_subcubes(
+        members=members,
+        gate_down_subcube=gate_down_subcube,
+    )
+    return (
+        -len(forbidden),
+        plane.logical_plane_id,
+    )
+
+
+def _select_baseline_candidate(
+    *,
+    mapping_mode: str,
+    candidates: list[int],
+    plane_counts: list[int],
+    cursor: int,
+    rng: random.Random,
+    layer_additions: dict[int, int],
+    pre_task_count: list[list[int]],
+    global_task_count: list[int],
+    weighted_additions: dict[int, int],
+    pre_weighted_load: list[list[int]],
+    global_weighted_load: list[int],
+) -> int:
+    """
+    四种经典/简化 Mapping 只在“候选怎么打分”上不同。
+
+    random:
+        从当前全部可行候选中随机选；固定 seed，可复现。
+
+    round_robin:
+        先保证 Plane 数均衡，再按 cursor 循环 tie-break。
+
+    least_loaded:
+        不看 Trace；使用 unit-task load 做 Greedy List Scheduling。
+        也就是尽量压低 affected layer 的任务数峰值。
+
+    frequency_aware:
+        使用 marginal frequency weighted load；
+        不使用 coactivation。
+    """
+
+    if not candidates:
+        raise SubcubeMappingError("Baseline Mapping 没有可行候选 Sub-Cube。")
+
+    if mapping_mode == MAPPING_MODE_RANDOM:
+        return candidates[rng.randrange(len(candidates))]
+
+    if mapping_mode == MAPPING_MODE_ROUND_ROBIN:
+        minimum = min(plane_counts[sc] for sc in candidates)
+        balanced = [
+            sc for sc in candidates
+            if plane_counts[sc] == minimum
+        ]
+        size = len(plane_counts)
+        return min(
+            balanced,
+            key=lambda sc: (
+                _cyclic_distance(
+                    start=cursor,
+                    target=sc,
+                    size=size,
+                ),
+                sc,
+            ),
+        )
+
+    if mapping_mode == MAPPING_MODE_LEAST_LOADED:
+        current_peaks = {
+            layer_id: max(pre_task_count[layer_id])
+            for layer_id in layer_additions
+        }
+        total_added_tasks = sum(layer_additions.values())
+
+        def least_loaded_score(sc: int) -> tuple[int, int, int, int]:
+            affected_peak = 0
+            for layer_id, add_count in layer_additions.items():
+                affected_peak = max(
+                    affected_peak,
+                    current_peaks[layer_id],
+                    pre_task_count[layer_id][sc] + add_count,
+                )
+            return (
+                affected_peak,
+                global_task_count[sc] + total_added_tasks,
+                plane_counts[sc],
+                sc,
+            )
+
+        return min(candidates, key=least_loaded_score)
+
+    if mapping_mode == MAPPING_MODE_FREQUENCY_AWARE:
+        current_peaks = {
+            layer_id: max(pre_weighted_load[layer_id])
+            for layer_id in weighted_additions
+        }
+        total_added_weight = sum(weighted_additions.values())
+
+        def frequency_score(sc: int) -> tuple[int, int, int, int]:
+            affected_peak = 0
+            for layer_id, added_weight in weighted_additions.items():
+                affected_peak = max(
+                    affected_peak,
+                    current_peaks[layer_id],
+                    pre_weighted_load[layer_id][sc] + added_weight,
+                )
+            return (
+                affected_peak,
+                global_weighted_load[sc] + total_added_weight,
+                plane_counts[sc],
+                sc,
+            )
+
+        return min(candidates, key=frequency_score)
+
+    raise SubcubeMappingError(
+        f"_select_baseline_candidate 不支持 mapping_mode={mapping_mode!r}。"
+    )
+
+
+def _map_logical_planes_classic(
+    *,
+    pairing: PairingResult,
+    cubes: Iterable[LogicalWeightCube],
+    profile: TraceProfile,
+    hardware: ResolvedHardwareConfig,
+    mapping_mode: str,
+    random_seed: int,
+) -> SubcubeMappingResult:
+    """
+    Random / Round-Robin / Least-Loaded / Frequency-aware 的统一实现。
+
+    重要设计：
+    1. 所有模式共享相同硬约束；
+    2. 所有 up Plane 共享相同 feasibility guard；
+    3. 不做回溯/CP-SAT，不引入高额运行时间；
+    4. 只有 frequency_aware 可以使用 frequency；
+       random/round_robin/least_loaded 的决策完全不依赖 Trace；
+    5. coactivation 在这四种模式中只用于最后事后统计 conflict，
+       不参与选择。
+    """
+
+    if mapping_mode not in {
+        MAPPING_MODE_RANDOM,
+        MAPPING_MODE_ROUND_ROBIN,
+        MAPPING_MODE_LEAST_LOADED,
+        MAPPING_MODE_FREQUENCY_AWARE,
+    }:
+        raise SubcubeMappingError(
+            f"Classic Mapping 不支持 mode={mapping_mode!r}。"
+        )
+
+    cube_list = tuple(cubes)
+    gate_down_planes, up_planes, cube_index = _build_plane_groups(
+        pairing=pairing,
+        cubes=cube_list,
+    )
+
+    num_subcubes = hardware.num_subcubes
+    rng = random.Random(random_seed)
+    cursor = 0
+
+    plane_counts = [0] * num_subcubes
+
+    # 输出/事后统计所需的真实 frequency-weighted load。
+    pre_load = [[0] * num_subcubes for _ in range(NUM_MOE_LAYERS)]
+    down_load = [[0] * num_subcubes for _ in range(NUM_MOE_LAYERS)]
+    global_weighted_load = [0] * num_subcubes
+
+    # Least-Loaded 的 unit-task load；不读取 Trace。
+    pre_task_count = [[0] * num_subcubes for _ in range(NUM_MOE_LAYERS)]
+    down_task_count = [[0] * num_subcubes for _ in range(NUM_MOE_LAYERS)]
+    global_task_count = [0] * num_subcubes
+
+    gate_experts_by_layer_sc = [
+        [[] for _ in range(num_subcubes)]
+        for _ in range(NUM_MOE_LAYERS)
+    ]
+    up_experts_by_layer_sc = [
+        [[] for _ in range(num_subcubes)]
+        for _ in range(NUM_MOE_LAYERS)
+    ]
+    gate_down_subcube = [
+        [-1] * (NUM_ROUTED_EXPERTS + 1)
+        for _ in range(NUM_MOE_LAYERS)
+    ]
+    plane_to_subcube: dict[int, int] = {}
+
+    # --------------------------------------------------------
+    # Gate/Down 阶段
+    # --------------------------------------------------------
+    gate_phase_cap = (
+        len(gate_down_planes) + num_subcubes - 1
+    ) // num_subcubes
+
+    gate_order = sorted(
+        gate_down_planes.values(),
+        key=lambda plane: plane.logical_plane_id,
+    )
+
+    # Frequency-aware 可以显式优先处理更热的 gate/down；
+    # 其余三种必须保持 trace-independent。
+    if mapping_mode == MAPPING_MODE_FREQUENCY_AWARE:
+        gate_order.sort(
+            key=lambda plane: (
+                -_activation_count(
+                    profile,
+                    *_extract_gate_down_expert(
+                        plane=plane,
+                        cube_index=cube_index,
+                    ),
+                ),
+                plane.logical_plane_id,
+            )
+        )
+
+    for plane in gate_order:
+        layer_id, expert_id = _extract_gate_down_expert(
+            plane=plane,
+            cube_index=cube_index,
+        )
+        candidates = [
+            sc for sc in range(num_subcubes)
+            if plane_counts[sc] < gate_phase_cap
+        ]
+        if not candidates:
+            raise SubcubeMappingError(
+                f"{mapping_mode}: gate/down 阶段没有可用 Sub-Cube。"
+            )
+
+        activation = _activation_count(profile, layer_id, expert_id)
+        layer_additions = {layer_id: 1}
+        weighted_additions = {layer_id: activation}
+
+        sc = _select_baseline_candidate(
+            mapping_mode=mapping_mode,
+            candidates=candidates,
+            plane_counts=plane_counts,
+            cursor=cursor,
+            rng=rng,
+            layer_additions=layer_additions,
+            pre_task_count=pre_task_count,
+            global_task_count=global_task_count,
+            weighted_additions=weighted_additions,
+            pre_weighted_load=pre_load,
+            global_weighted_load=global_weighted_load,
+        )
+        if mapping_mode == MAPPING_MODE_ROUND_ROBIN:
+            cursor = (sc + 1) % num_subcubes
+
+        plane_to_subcube[plane.logical_plane_id] = sc
+        gate_down_subcube[layer_id][expert_id] = sc
+        gate_experts_by_layer_sc[layer_id][sc].append(expert_id)
+
+        plane_counts[sc] += 1
+        pre_load[layer_id][sc] += activation
+        down_load[layer_id][sc] += activation
+        global_weighted_load[sc] += 2 * activation
+
+        pre_task_count[layer_id][sc] += 1
+        down_task_count[layer_id][sc] += 1
+        global_task_count[sc] += 2
+
+    # --------------------------------------------------------
+    # Up 阶段：所有模式共享 feasibility guard。
+    # --------------------------------------------------------
+    if mapping_mode == MAPPING_MODE_FREQUENCY_AWARE:
+        up_planes.sort(
+            key=lambda plane: _up_plane_sort_key(
+                plane=plane,
+                cube_index=cube_index,
+                gate_down_subcube=gate_down_subcube,
+                profile=profile,
+            )
+        )
+    else:
+        up_planes.sort(
+            key=lambda plane: _baseline_up_sort_key(
+                plane=plane,
+                cube_index=cube_index,
+                gate_down_subcube=gate_down_subcube,
+            )
+        )
+
+        # Random 仍然优先 forbidden 更多的 Plane，
+        # 但在同一约束等级内部打乱，避免退化成固定顺序。
+        if mapping_mode == MAPPING_MODE_RANDOM:
+            grouped: dict[int, list[LogicalPlane]] = {}
+            for plane in up_planes:
+                members = _extract_up_members(
+                    plane=plane,
+                    cube_index=cube_index,
+                )
+                level = len(
+                    _up_forbidden_subcubes(
+                        members=members,
+                        gate_down_subcube=gate_down_subcube,
+                    )
+                )
+                grouped.setdefault(level, []).append(plane)
+            randomized: list[LogicalPlane] = []
+            for level in sorted(grouped, reverse=True):
+                bucket = grouped[level]
+                rng.shuffle(bucket)
+                randomized.extend(bucket)
+            up_planes = randomized
+
+    up_members_by_plane_id: dict[
+        int,
+        tuple[tuple[int, int], tuple[int, int]],
+    ] = {}
+    up_forbidden_by_plane_id: dict[int, frozenset[int]] = {}
+    remaining_forbidden_single = [0] * num_subcubes
+    remaining_forbidden_pair = [
+        [0] * num_subcubes
+        for _ in range(num_subcubes)
+    ]
+
+    for plane in up_planes:
+        members = _extract_up_members(
+            plane=plane,
+            cube_index=cube_index,
+        )
+        forbidden = _up_forbidden_subcubes(
+            members=members,
+            gate_down_subcube=gate_down_subcube,
+        )
+        up_members_by_plane_id[plane.logical_plane_id] = members
+        up_forbidden_by_plane_id[plane.logical_plane_id] = forbidden
+        for forbidden_sc in forbidden:
+            remaining_forbidden_single[forbidden_sc] += 1
+        if len(forbidden) == 2:
+            first, second = sorted(forbidden)
+            remaining_forbidden_pair[first][second] += 1
+
+    remaining_up_planes = len(up_planes)
+
+    for plane in up_planes:
+        members = up_members_by_plane_id[plane.logical_plane_id]
+        forbidden = up_forbidden_by_plane_id[plane.logical_plane_id]
+
+        remaining_up_planes -= 1
+        for forbidden_sc in forbidden:
+            remaining_forbidden_single[forbidden_sc] -= 1
+        if len(forbidden) == 2:
+            first, second = sorted(forbidden)
+            remaining_forbidden_pair[first][second] -= 1
+
+        local_candidates = [
+            sc for sc in range(num_subcubes)
+            if sc not in forbidden and plane_counts[sc] < hardware.D
+        ]
+        feasible_candidates = [
+            sc for sc in local_candidates
+            if _candidate_preserves_up_feasibility(
+                candidate_sc=sc,
+                plane_counts=plane_counts,
+                D=hardware.D,
+                remaining_plane_count=remaining_up_planes,
+                remaining_forbidden_single=remaining_forbidden_single,
+                remaining_forbidden_pair=remaining_forbidden_pair,
+            )
+        ]
+        if not feasible_candidates:
+            raise SubcubeMappingError(
+                f"{mapping_mode}: LogicalPlane-{plane.logical_plane_id} "
+                "没有保持后续容量可行性的候选 Sub-Cube。"
+            )
+
+        layer_additions: dict[int, int] = {}
+        weighted_additions: dict[int, int] = {}
+        for layer_id, expert_id in members:
+            layer_additions[layer_id] = layer_additions.get(layer_id, 0) + 1
+            weighted_additions[layer_id] = (
+                weighted_additions.get(layer_id, 0)
+                + _activation_count(profile, layer_id, expert_id)
+            )
+
+        sc = _select_baseline_candidate(
+            mapping_mode=mapping_mode,
+            candidates=feasible_candidates,
+            plane_counts=plane_counts,
+            cursor=cursor,
+            rng=rng,
+            layer_additions=layer_additions,
+            pre_task_count=pre_task_count,
+            global_task_count=global_task_count,
+            weighted_additions=weighted_additions,
+            pre_weighted_load=pre_load,
+            global_weighted_load=global_weighted_load,
+        )
+        if mapping_mode == MAPPING_MODE_ROUND_ROBIN:
+            cursor = (sc + 1) % num_subcubes
+
+        plane_to_subcube[plane.logical_plane_id] = sc
+        plane_counts[sc] += 1
+
+        for layer_id, expert_id in members:
+            activation = _activation_count(profile, layer_id, expert_id)
+            up_experts_by_layer_sc[layer_id][sc].append(expert_id)
+            pre_load[layer_id][sc] += activation
+            global_weighted_load[sc] += activation
+
+            pre_task_count[layer_id][sc] += 1
+            global_task_count[sc] += 1
+
+    # --------------------------------------------------------
+    # z 分配
+    # --------------------------------------------------------
+    plane_ids_by_sc = [[] for _ in range(num_subcubes)]
+    for plane in pairing.planes:
+        try:
+            sc = plane_to_subcube[plane.logical_plane_id]
+        except KeyError as exc:
+            raise SubcubeMappingError(
+                f"LogicalPlane-{plane.logical_plane_id} 未完成 {mapping_mode} 映射。"
+            ) from exc
+        plane_ids_by_sc[sc].append(plane.logical_plane_id)
+
+    placement_by_id: dict[int, LogicalPlanePlacement] = {}
+    for sc, plane_ids in enumerate(plane_ids_by_sc):
+        plane_ids.sort()
+        if len(plane_ids) > hardware.D:
+            raise SubcubeMappingError(
+                f"{mapping_mode}: SC-{sc} Plane 数超过 D={hardware.D}。"
+            )
+        for z, logical_plane_id in enumerate(plane_ids):
+            placement_by_id[logical_plane_id] = LogicalPlanePlacement(
+                logical_plane_id=logical_plane_id,
+                subcube_id=sc,
+                z=z,
+            )
+
+    placements = tuple(
+        placement_by_id[plane.logical_plane_id]
+        for plane in sorted(
+            pairing.planes,
+            key=lambda item: item.logical_plane_id,
+        )
+    )
+
+    pre_conflict, down_conflict = _calculate_conflicts(
+        profile=profile,
+        gate_experts_by_layer_sc=gate_experts_by_layer_sc,
+        up_experts_by_layer_sc=up_experts_by_layer_sc,
+    )
+
+    result = SubcubeMappingResult(
+        hardware=hardware,
+        placements=placements,
+        subcube_plane_counts=tuple(plane_counts),
+        gate_down_subcube_by_layer=tuple(
+            tuple(row) for row in gate_down_subcube
+        ),
+        pre_weighted_load_by_layer=tuple(
+            tuple(row) for row in pre_load
+        ),
+        down_weighted_load_by_layer=tuple(
+            tuple(row) for row in down_load
+        ),
+        pre_conflict_cost=pre_conflict,
+        down_conflict_cost=down_conflict,
+    )
+
+    validate_subcube_mapping(
+        result=result,
+        pairing=pairing,
+        cubes=cube_list,
+        profile=profile,
+    )
+    return result
 
 
 # ============================================================
@@ -2289,18 +2917,31 @@ def map_logical_planes_to_subcubes(
     mapping_mode: str = (
         MAPPING_MODE_TRACE_AWARE
     ),
+
+    random_seed: int = (
+        DEFAULT_MAPPING_RANDOM_SEED
+    ),
 ) -> SubcubeMappingResult:
     """
     将所有 LogicalPlane 映射到 Sub-Cube。
 
     mapping_mode：
 
-        trace_aware：
-            当前正式 Trace-aware Mapping。
+        random：
+            固定 seed 的随机合法映射，不使用 Trace。
 
         round_robin：
-            不使用 Trace 决策的受约束轮询 Baseline；
-            仅保留容量与 gate/up 分离硬约束。
+            不使用 Trace 的受约束轮询。
+
+        least_loaded：
+            不使用 Trace 的 unit-task Greedy List Scheduling。
+
+        frequency_aware：
+            只使用 Expert marginal frequency 做负载均衡，
+            不使用 coactivation。
+
+        trace_aware：
+            当前完整 frequency + coactivation + load Mapping。
 
     trace_aware 当前顺序：
 
@@ -2365,20 +3006,24 @@ def map_logical_planes_to_subcubes(
         )
 
     # ========================================================
-    # Round-Robin Baseline
+    # Classic / Simplified Mapping Baselines
     # ========================================================
 
-    if (
-        mapping_mode
-        == MAPPING_MODE_ROUND_ROBIN
-    ):
+    if mapping_mode in {
+        MAPPING_MODE_RANDOM,
+        MAPPING_MODE_ROUND_ROBIN,
+        MAPPING_MODE_LEAST_LOADED,
+        MAPPING_MODE_FREQUENCY_AWARE,
+    }:
 
         return (
-            _map_logical_planes_round_robin(
+            _map_logical_planes_classic(
                 pairing=pairing,
                 cubes=cube_list,
                 profile=profile,
                 hardware=hardware,
+                mapping_mode=mapping_mode,
+                random_seed=random_seed,
             )
         )
 
@@ -2687,14 +3332,63 @@ def map_logical_planes_to_subcubes(
         )
     )
 
+    # ========================================================
+    # Up 阶段容量可行性计数
+    #
+    # 只统计 forbidden 结构，不读取额外 Trace 信息。
+    # 每放一张 Plane 就先从“未来集合”中删除当前 Plane，
+    # _choose_up_subcube() 再检查本次选择是否会堵死未来。
+    # ========================================================
+
+    up_members_by_plane_id: dict[
+        int,
+        tuple[tuple[int, int], tuple[int, int]],
+    ] = {}
+    up_forbidden_by_plane_id: dict[int, frozenset[int]] = {}
+
+    remaining_forbidden_single = [
+        0 for _ in range(num_subcubes)
+    ]
+    remaining_forbidden_pair = [
+        [0 for _ in range(num_subcubes)]
+        for _ in range(num_subcubes)
+    ]
+
+    for up_plane in up_planes:
+        up_members = _extract_up_members(
+            plane=up_plane,
+            cube_index=cube_index,
+        )
+        forbidden = _up_forbidden_subcubes(
+            members=up_members,
+            gate_down_subcube=gate_down_subcube,
+        )
+
+        up_members_by_plane_id[up_plane.logical_plane_id] = up_members
+        up_forbidden_by_plane_id[up_plane.logical_plane_id] = forbidden
+
+        for forbidden_sc in forbidden:
+            remaining_forbidden_single[forbidden_sc] += 1
+
+        if len(forbidden) == 2:
+            first, second = sorted(forbidden)
+            remaining_forbidden_pair[first][second] += 1
+
+    remaining_up_planes = len(up_planes)
+
     for plane in up_planes:
 
-        members = (
-            _extract_up_members(
-                plane=plane,
-                cube_index=cube_index,
-            )
-        )
+        members = up_members_by_plane_id[plane.logical_plane_id]
+        forbidden = up_forbidden_by_plane_id[plane.logical_plane_id]
+
+        # 当前 Plane 马上要放，因此 feasibility guard 只应看“未来 Plane”。
+        remaining_up_planes -= 1
+        for forbidden_sc in forbidden:
+            remaining_forbidden_single[forbidden_sc] -= 1
+
+        if len(forbidden) == 2:
+            first, second = sorted(forbidden)
+            remaining_forbidden_pair[first][second] -= 1
 
         sc = (
             _choose_up_subcube(
@@ -2726,6 +3420,18 @@ def map_logical_planes_to_subcubes(
                 ),
 
                 D=hardware.D,
+
+                remaining_plane_count=(
+                    remaining_up_planes
+                ),
+
+                remaining_forbidden_single=(
+                    remaining_forbidden_single
+                ),
+
+                remaining_forbidden_pair=(
+                    remaining_forbidden_pair
+                ),
             )
         )
 

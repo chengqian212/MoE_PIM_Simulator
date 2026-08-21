@@ -1,0 +1,160 @@
+{
+  "comparison_version": 2,
+  "scope": "Pairing baseline comparison; Trace-aware Mapping fixed; Profile and held-out Evaluation split",
+  "protocol": {
+    "profile_file_count": 1616,
+    "evaluation_file_count": 404,
+    "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+    "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+  },
+  "modes": [
+    "sequential",
+    "random",
+    "frequency_aware",
+    "greedy",
+    "trace_aware",
+    "optimal"
+  ],
+  "metrics": [
+    {
+      "mode": "sequential",
+      "display_name": "Sequential",
+      "pairing_cost": 2385709,
+      "mapping_conflict_cost": 107477950,
+      "pre_conflict_cost": 91231602,
+      "down_conflict_cost": 16246348,
+      "prefill_mean_latency": 3230.7648514851485,
+      "prefill_mean_cycles_per_input_token": 232.91484681440855,
+      "decode_mean_cycles_per_token": 519.7959384083589,
+      "decode_p95_cycles_per_token": 562.0,
+      "profile_file_count": 1616,
+      "evaluation_file_count": 404,
+      "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+      "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+    },
+    {
+      "mode": "random",
+      "display_name": "Random",
+      "pairing_cost": 1462564,
+      "mapping_conflict_cost": 107150159,
+      "pre_conflict_cost": 90903811,
+      "down_conflict_cost": 16246348,
+      "prefill_mean_latency": 3224.539603960396,
+      "prefill_mean_cycles_per_input_token": 232.55422463392,
+      "decode_mean_cycles_per_token": 519.5941943593369,
+      "decode_p95_cycles_per_token": 560.0,
+      "profile_file_count": 1616,
+      "evaluation_file_count": 404,
+      "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+      "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+    },
+    {
+      "mode": "frequency_aware",
+      "display_name": "Frequency-aware",
+      "pairing_cost": 1021625,
+      "mapping_conflict_cost": 107078583,
+      "pre_conflict_cost": 90832235,
+      "down_conflict_cost": 16246348,
+      "prefill_mean_latency": 3225.220297029703,
+      "prefill_mean_cycles_per_input_token": 232.53589621909413,
+      "decode_mean_cycles_per_token": 519.4048236310787,
+      "decode_p95_cycles_per_token": 562.0,
+      "profile_file_count": 1616,
+      "evaluation_file_count": 404,
+      "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+      "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+    },
+    {
+      "mode": "greedy",
+      "display_name": "Coactivation Greedy",
+      "pairing_cost": 369335,
+      "mapping_conflict_cost": 106791569,
+      "pre_conflict_cost": 90545221,
+      "down_conflict_cost": 16246348,
+      "prefill_mean_latency": 3225.1831683168316,
+      "prefill_mean_cycles_per_input_token": 232.55638267067673,
+      "decode_mean_cycles_per_token": 519.2205593526593,
+      "decode_p95_cycles_per_token": 560.0,
+      "profile_file_count": 1616,
+      "evaluation_file_count": 404,
+      "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+      "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+    },
+    {
+      "mode": "trace_aware",
+      "display_name": "Greedy + Local Search",
+      "pairing_cost": 344611,
+      "mapping_conflict_cost": 106760391,
+      "pre_conflict_cost": 90514043,
+      "down_conflict_cost": 16246348,
+      "prefill_mean_latency": 3227.108910891089,
+      "prefill_mean_cycles_per_input_token": 232.70814138403648,
+      "decode_mean_cycles_per_token": 519.1834786707518,
+      "decode_p95_cycles_per_token": 560.0,
+      "profile_file_count": 1616,
+      "evaluation_file_count": 404,
+      "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+      "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+    },
+    {
+      "mode": "optimal",
+      "display_name": "Optimal Matching",
+      "pairing_cost": 316871,
+      "mapping_conflict_cost": 106751540,
+      "pre_conflict_cost": 90505192,
+      "down_conflict_cost": 16246348,
+      "prefill_mean_latency": 3226.3811881188117,
+      "prefill_mean_cycles_per_input_token": 232.67578144534366,
+      "decode_mean_cycles_per_token": 519.1165448974782,
+      "decode_p95_cycles_per_token": 560.0,
+      "profile_file_count": 1616,
+      "evaluation_file_count": 404,
+      "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+      "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+    }
+  ],
+  "improvements_vs_sequential": [
+    {
+      "mode": "sequential",
+      "pairing_cost_reduction_vs_sequential_percent": 0.0,
+      "prefill_mean_improvement_vs_sequential_percent": 0.0,
+      "decode_mean_improvement_vs_sequential_percent": 0.0,
+      "decode_p95_improvement_vs_sequential_percent": 0.0
+    },
+    {
+      "mode": "random",
+      "pairing_cost_reduction_vs_sequential_percent": 38.69478632976612,
+      "prefill_mean_improvement_vs_sequential_percent": 0.19268649409413674,
+      "decode_mean_improvement_vs_sequential_percent": 0.03881216341160813,
+      "decode_p95_improvement_vs_sequential_percent": 0.3558718861209964
+    },
+    {
+      "mode": "frequency_aware",
+      "pairing_cost_reduction_vs_sequential_percent": 57.17730033294086,
+      "prefill_mean_improvement_vs_sequential_percent": 0.17161739434229256,
+      "decode_mean_improvement_vs_sequential_percent": 0.0752439079223734,
+      "decode_p95_improvement_vs_sequential_percent": 0.0
+    },
+    {
+      "mode": "greedy",
+      "pairing_cost_reduction_vs_sequential_percent": 84.5188579160325,
+      "prefill_mean_improvement_vs_sequential_percent": 0.17276661796512505,
+      "decode_mean_improvement_vs_sequential_percent": 0.11069325733122368,
+      "decode_p95_improvement_vs_sequential_percent": 0.3558718861209964
+    },
+    {
+      "mode": "trace_aware",
+      "pairing_cost_reduction_vs_sequential_percent": 85.5551955414512,
+      "prefill_mean_improvement_vs_sequential_percent": 0.11316021939444787,
+      "decode_mean_improvement_vs_sequential_percent": 0.11782695714831182,
+      "decode_p95_improvement_vs_sequential_percent": 0.3558718861209964
+    },
+    {
+      "mode": "optimal",
+      "pairing_cost_reduction_vs_sequential_percent": 86.71795260863752,
+      "prefill_mean_improvement_vs_sequential_percent": 0.13568500240188267,
+      "decode_mean_improvement_vs_sequential_percent": 0.13070388986897882,
+      "decode_p95_improvement_vs_sequential_percent": 0.3558718861209964
+    }
+  ]
+}

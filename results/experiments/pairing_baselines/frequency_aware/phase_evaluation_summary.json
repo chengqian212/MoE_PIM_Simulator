@@ -1,0 +1,71 @@
+{
+  "summary_version": 1,
+  "scope": "MoE Expert phase evaluation only; Prefill is not full TTFT, Decode is not full TPOT",
+  "protocol": {
+    "manifest": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\splits\\chinese_simpleqa_80_20_seed42.json",
+    "dataset": "Chinese-SimpleQA",
+    "split_version": 1,
+    "seed": 42,
+    "profile_ratio": 0.8,
+    "source_file_count": 2020,
+    "source_fingerprint": "ace2c93aeeb1b818dc477153f172ebe241835fce141c9b198825a3dcb906db4d",
+    "profile_subset": "profile",
+    "profile_file_count": 1616,
+    "profile_fingerprint": "63c942f64e28e6b3a0d1458446947943cf470cb574e9c961a8fa63c1f1d7f9e1",
+    "evaluation_subset": "evaluation",
+    "evaluation_file_count": 404,
+    "evaluation_fingerprint": "fd6f0c8f08b57a8f15936aa026cdd79d52b5ac7a1fe855f6a5ab0e61d49dd6d9"
+  },
+  "sources": {
+    "prefill": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\pairing_baselines\\frequency_aware\\prefill_evaluation.json",
+    "decode": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\pairing_baselines\\frequency_aware\\decode_fast_evaluation.json"
+  },
+  "prefill": {
+    "batch_count": 404,
+    "total_input_tokens": 5743,
+    "prompt_length": {
+      "count": 404,
+      "minimum": 6.0,
+      "mean": 14.215346534653465,
+      "p50": 13.0,
+      "p95": 24.0,
+      "p99": 30.0,
+      "maximum": 39.0
+    },
+    "latency_cycles": {
+      "count": 404,
+      "minimum": 1634.0,
+      "mean": 3225.220297029703,
+      "p50": 3034.0,
+      "p95": 4886.799999999999,
+      "p99": 6106.749999999998,
+      "maximum": 7533.0
+    },
+    "cycles_per_input_token": {
+      "count": 404,
+      "minimum": 193.1081081081081,
+      "mean": 232.53589621909413,
+      "p50": 232.19230769230768,
+      "p95": 259.8375,
+      "p99": 274.80404761904754,
+      "maximum": 288.1666666666667
+    },
+    "global_cycles_per_input_token": 226.8829879853735,
+    "global_input_tokens_per_cycle": 0.004407558313999581,
+    "prompt_length_latency_pearson": 0.9975442382911689
+  },
+  "decode": {
+    "token_count": 50916,
+    "scheduler_mode": "fast_exact-validated",
+    "exact_checked_tokens": 0,
+    "cycles_per_token": {
+      "count": 50916,
+      "minimum": 358.0,
+      "mean": 519.4048236310787,
+      "p50": 526.0,
+      "p95": 562.0,
+      "p99": 574.0,
+      "maximum": 620.0
+    }
+  }
+}

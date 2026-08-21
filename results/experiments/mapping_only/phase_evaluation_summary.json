@@ -1,0 +1,56 @@
+{
+  "summary_version": 1,
+  "scope": "MoE Expert phase evaluation only; Prefill is not full TTFT, Decode is not full TPOT",
+  "sources": {
+    "prefill": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\mapping_only\\prefill_evaluation.json",
+    "decode": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\mapping_only\\decode_fast_evaluation.json"
+  },
+  "prefill": {
+    "batch_count": 2020,
+    "total_input_tokens": 29659,
+    "prompt_length": {
+      "count": 2020,
+      "minimum": 3.0,
+      "mean": 14.682673267326733,
+      "p50": 13.0,
+      "p95": 25.0,
+      "p99": 32.0,
+      "maximum": 70.0
+    },
+    "latency_cycles": {
+      "count": 2020,
+      "minimum": 998.0,
+      "mean": 3308.3935643564355,
+      "p50": 3084.0,
+      "p95": 5196.9,
+      "p99": 6418.81,
+      "maximum": 12664.0
+    },
+    "cycles_per_input_token": {
+      "count": 2020,
+      "minimum": 176.0483870967742,
+      "mean": 231.311943806442,
+      "p50": 230.28571428571428,
+      "p95": 260.63125,
+      "p99": 273.80285714285714,
+      "maximum": 332.6666666666667
+    },
+    "global_cycles_per_input_token": 225.3263764793149,
+    "global_input_tokens_per_cycle": 0.004438006839788686,
+    "prompt_length_latency_pearson": 0.9968728624196094
+  },
+  "decode": {
+    "token_count": 255710,
+    "scheduler_mode": "fast_exact-validated",
+    "exact_checked_tokens": 100,
+    "cycles_per_token": {
+      "count": 255710,
+      "minimum": 364.0,
+      "mean": 518.365468695006,
+      "p50": 526.0,
+      "p95": 560.0,
+      "p99": 572.0,
+      "maximum": 610.0
+    }
+  }
+}

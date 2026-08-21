@@ -1,0 +1,435 @@
+{
+  "experiment": "prefill_scheduler_ablation_with_batch_size_sensitivity",
+  "protocol": "heldout_evaluation",
+  "modes": [
+    "no_reuse",
+    "switch_aware",
+    "aggressive_reuse",
+    "largest_batch_reuse"
+  ],
+  "mapping": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\mappings\\mapping_baseline_N4_H7168_W4096.json",
+  "trace_root": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\deepseek_r1_trace\\cognitivecomputations\\DeepSeek-R1-AWQ\\Chinese-SimpleQA",
+  "trace_manifest": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\splits\\chinese_simpleqa_80_20_seed42.json",
+  "trace_subset": "evaluation",
+  "max_batches": null,
+  "token_buckets": [
+    {
+      "name": "2-8",
+      "min_tokens": 2,
+      "max_tokens": 8
+    },
+    {
+      "name": "9-16",
+      "min_tokens": 9,
+      "max_tokens": 16
+    },
+    {
+      "name": "17-24",
+      "min_tokens": 17,
+      "max_tokens": 24
+    },
+    {
+      "name": "25+",
+      "min_tokens": 25,
+      "max_tokens": null
+    }
+  ],
+  "results": {
+    "no_reuse": {
+      "prefill_mean_cycles": 3788.542079207921,
+      "prefill_p95_cycles": 5955.8,
+      "mean_cycles_per_input_token": 270.07786044134383,
+      "global_cycles_per_input_token": 266.5107086888386,
+      "mean_switches_per_batch": 15114.230198019803,
+      "mean_wait_cycles_per_batch": 380743.55693069304,
+      "batch_count": 404,
+      "total_input_tokens": 5743,
+      "buckets": {
+        "2-8": {
+          "range": {
+            "min_tokens": 2,
+            "max_tokens": 8
+          },
+          "batch_count": 33,
+          "total_input_tokens": 247,
+          "mean_input_tokens": 7.484848484848484,
+          "mean_prefill_cycles": 2186.6969696969695,
+          "p95_prefill_cycles": 2377.0,
+          "mean_cycles_per_input_token": 292.6358225108225,
+          "global_cycles_per_input_token": 292.1497975708502,
+          "mean_switches_per_batch": 8383.363636363636,
+          "mean_wait_cycles_per_batch": 92971.51515151515,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 0.0,
+            "cycles_per_input_token_percent": 0.0,
+            "switches_percent": 0.0
+          }
+        },
+        "9-16": {
+          "range": {
+            "min_tokens": 9,
+            "max_tokens": 16
+          },
+          "batch_count": 266,
+          "total_input_tokens": 3259,
+          "mean_input_tokens": 12.25187969924812,
+          "mean_prefill_cycles": 3323.466165413534,
+          "p95_prefill_cycles": 4251.25,
+          "mean_cycles_per_input_token": 272.2220649598939,
+          "global_cycles_per_input_token": 271.261736729058,
+          "mean_switches_per_batch": 13131.417293233082,
+          "mean_wait_cycles_per_batch": 256168.14661654134,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 0.0,
+            "cycles_per_input_token_percent": 0.0,
+            "switches_percent": 0.0
+          }
+        },
+        "17-24": {
+          "range": {
+            "min_tokens": 17,
+            "max_tokens": 24
+          },
+          "batch_count": 86,
+          "total_input_tokens": 1687,
+          "mean_input_tokens": 19.61627906976744,
+          "mean_prefill_cycles": 5066.0,
+          "p95_prefill_cycles": 5849.5,
+          "mean_cycles_per_input_token": 258.6741693849623,
+          "global_cycles_per_input_token": 258.2548903378779,
+          "mean_switches_per_batch": 20544.25581395349,
+          "mean_wait_cycles_per_batch": 646561.476744186,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 0.0,
+            "cycles_per_input_token_percent": 0.0,
+            "switches_percent": 0.0
+          }
+        },
+        "25+": {
+          "range": {
+            "min_tokens": 25,
+            "max_tokens": null
+          },
+          "batch_count": 19,
+          "total_input_tokens": 550,
+          "mean_input_tokens": 28.94736842105263,
+          "mean_prefill_cycles": 7299.578947368421,
+          "p95_prefill_cycles": 9059.499999999998,
+          "mean_cycles_per_input_token": 252.49608573722327,
+          "global_cycles_per_input_token": 252.16727272727272,
+          "mean_switches_per_batch": 29986.052631578947,
+          "mean_wait_cycles_per_batch": 1421438.0526315789,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 0.0,
+            "cycles_per_input_token_percent": 0.0,
+            "switches_percent": 0.0
+          }
+        }
+      },
+      "output": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\prefill_scheduler\\no_reuse\\prefill_evaluation.json",
+      "improvement_vs_no_reuse": {
+        "prefill_mean_percent": 0.0,
+        "cycles_per_input_token_percent": 0.0,
+        "p95_percent": 0.0,
+        "switches_percent": 0.0
+      }
+    },
+    "switch_aware": {
+      "prefill_mean_cycles": 3227.108910891089,
+      "prefill_p95_cycles": 4887.9,
+      "mean_cycles_per_input_token": 232.70814138403648,
+      "global_cycles_per_input_token": 227.01584537698068,
+      "mean_switches_per_batch": 11178.893564356436,
+      "mean_wait_cycles_per_batch": 328800.3415841584,
+      "batch_count": 404,
+      "total_input_tokens": 5743,
+      "buckets": {
+        "2-8": {
+          "range": {
+            "min_tokens": 2,
+            "max_tokens": 8
+          },
+          "batch_count": 33,
+          "total_input_tokens": 247,
+          "mean_input_tokens": 7.484848484848484,
+          "mean_prefill_cycles": 1980.2121212121212,
+          "p95_prefill_cycles": 2127.7999999999997,
+          "mean_cycles_per_input_token": 265.26641414141415,
+          "global_cycles_per_input_token": 264.56275303643724,
+          "mean_switches_per_batch": 7265.393939393939,
+          "mean_wait_cycles_per_batch": 86216.57575757576,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 9.442773797480625,
+            "cycles_per_input_token_percent": 9.352719750636869,
+            "switches_percent": 13.335574424093895
+          }
+        },
+        "9-16": {
+          "range": {
+            "min_tokens": 9,
+            "max_tokens": 16
+          },
+          "batch_count": 266,
+          "total_input_tokens": 3259,
+          "mean_input_tokens": 12.25187969924812,
+          "mean_prefill_cycles": 2879.5676691729323,
+          "p95_prefill_cycles": 3587.75,
+          "mean_cycles_per_input_token": 236.59518043568795,
+          "global_cycles_per_input_token": 235.03068425897516,
+          "mean_switches_per_batch": 10226.443609022557,
+          "mean_wait_cycles_per_batch": 227464.67293233084,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 13.356492112365705,
+            "cycles_per_input_token_percent": 13.087434528664968,
+            "switches_percent": 22.122316421301484
+          }
+        },
+        "17-24": {
+          "range": {
+            "min_tokens": 17,
+            "max_tokens": 24
+          },
+          "batch_count": 86,
+          "total_input_tokens": 1687,
+          "mean_input_tokens": 19.61627906976744,
+          "mean_prefill_cycles": 4206.837209302325,
+          "p95_prefill_cycles": 4806.5,
+          "mean_cycles_per_input_token": 215.0336549905568,
+          "global_cycles_per_input_token": 214.4564315352697,
+          "mean_switches_per_batch": 14113.953488372093,
+          "mean_wait_cycles_per_batch": 551082.3720930233,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 16.959391841643797,
+            "cycles_per_input_token_percent": 16.87084353964198,
+            "switches_percent": 31.299757868153037
+          }
+        },
+        "25+": {
+          "range": {
+            "min_tokens": 25,
+            "max_tokens": null
+          },
+          "batch_count": 19,
+          "total_input_tokens": 550,
+          "mean_input_tokens": 28.94736842105263,
+          "mean_prefill_cycles": 5823.789473684211,
+          "p95_prefill_cycles": 7166.199999999999,
+          "mean_cycles_per_input_token": 201.74132249490484,
+          "global_cycles_per_input_token": 201.18545454545455,
+          "mean_switches_per_batch": 18025.315789473683,
+          "mean_wait_cycles_per_batch": 1162710.7368421052,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 20.21746027168113,
+            "cycles_per_input_token_percent": 20.10120794313609,
+            "switches_percent": 39.88766707328846
+          }
+        }
+      },
+      "output": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\prefill_scheduler\\switch_aware\\prefill_evaluation.json",
+      "improvement_vs_no_reuse": {
+        "prefill_mean_percent": 14.819240662471717,
+        "cycles_per_input_token_percent": 13.83664658637334,
+        "p95_percent": 17.93042076631184,
+        "switches_percent": 26.037294537031443
+      }
+    },
+    "aggressive_reuse": {
+      "prefill_mean_cycles": 3208.9232673267325,
+      "prefill_p95_cycles": 4835.7,
+      "mean_cycles_per_input_token": 231.4969589613525,
+      "global_cycles_per_input_token": 225.7365488420686,
+      "mean_switches_per_batch": 11053.747524752474,
+      "mean_wait_cycles_per_batch": 327976.3589108911,
+      "batch_count": 404,
+      "total_input_tokens": 5743,
+      "buckets": {
+        "2-8": {
+          "range": {
+            "min_tokens": 2,
+            "max_tokens": 8
+          },
+          "batch_count": 33,
+          "total_input_tokens": 247,
+          "mean_input_tokens": 7.484848484848484,
+          "mean_prefill_cycles": 1973.090909090909,
+          "p95_prefill_cycles": 2120.0,
+          "mean_cycles_per_input_token": 264.324494949495,
+          "global_cycles_per_input_token": 263.6113360323887,
+          "mean_switches_per_batch": 7230.272727272727,
+          "mean_wait_cycles_per_batch": 86106.0,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 9.768434472914729,
+            "cycles_per_input_token_percent": 9.674593943562902,
+            "switches_percent": 13.754513809818144
+          }
+        },
+        "9-16": {
+          "range": {
+            "min_tokens": 9,
+            "max_tokens": 16
+          },
+          "batch_count": 266,
+          "total_input_tokens": 3259,
+          "mean_input_tokens": 12.25187969924812,
+          "mean_prefill_cycles": 2865.4172932330825,
+          "p95_prefill_cycles": 3559.75,
+          "mean_cycles_per_input_token": 235.4532911637235,
+          "global_cycles_per_input_token": 233.87572875115066,
+          "mean_switches_per_batch": 10135.80827067669,
+          "mean_wait_cycles_per_batch": 227010.6052631579,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 13.782263738600662,
+            "cycles_per_input_token_percent": 13.506904299468703,
+            "switches_percent": 22.81253390751733
+          }
+        },
+        "17-24": {
+          "range": {
+            "min_tokens": 17,
+            "max_tokens": 24
+          },
+          "batch_count": 86,
+          "total_input_tokens": 1687,
+          "mean_input_tokens": 19.61627906976744,
+          "mean_prefill_cycles": 4179.058139534884,
+          "p95_prefill_cycles": 4768.75,
+          "mean_cycles_per_input_token": 213.62516492098442,
+          "global_cycles_per_input_token": 213.04030823947838,
+          "mean_switches_per_batch": 13907.10465116279,
+          "mean_wait_cycles_per_batch": 549575.0465116279,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 17.50773510590439,
+            "cycles_per_input_token_percent": 17.4153471029167,
+            "switches_percent": 32.30660298866995
+          }
+        },
+        "25+": {
+          "range": {
+            "min_tokens": 25,
+            "max_tokens": null
+          },
+          "batch_count": 19,
+          "total_input_tokens": 550,
+          "mean_input_tokens": 28.94736842105263,
+          "mean_prefill_cycles": 5773.315789473684,
+          "p95_prefill_cycles": 7090.4,
+          "mean_cycles_per_input_token": 199.98544496305107,
+          "global_cycles_per_input_token": 199.44181818181818,
+          "mean_switches_per_batch": 17630.473684210527,
+          "mean_wait_cycles_per_batch": 1158561.894736842,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 20.9089204856805,
+            "cycles_per_input_token_percent": 20.796615765687896,
+            "switches_percent": 41.204419598585304
+          }
+        }
+      },
+      "output": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\prefill_scheduler\\aggressive_reuse\\prefill_evaluation.json",
+      "improvement_vs_no_reuse": {
+        "prefill_mean_percent": 15.299257597328062,
+        "cycles_per_input_token_percent": 14.285103346473829,
+        "p95_percent": 18.806877329661848,
+        "switches_percent": 26.865295950033328
+      }
+    },
+    "largest_batch_reuse": {
+      "prefill_mean_cycles": 3211.79702970297,
+      "prefill_p95_cycles": 4836.0,
+      "mean_cycles_per_input_token": 231.74322838289586,
+      "global_cycles_per_input_token": 225.9387079923385,
+      "mean_switches_per_batch": 11053.747524752474,
+      "mean_wait_cycles_per_batch": 276672.41584158415,
+      "batch_count": 404,
+      "total_input_tokens": 5743,
+      "buckets": {
+        "2-8": {
+          "range": {
+            "min_tokens": 2,
+            "max_tokens": 8
+          },
+          "batch_count": 33,
+          "total_input_tokens": 247,
+          "mean_input_tokens": 7.484848484848484,
+          "mean_prefill_cycles": 1977.3939393939395,
+          "p95_prefill_cycles": 2123.2,
+          "mean_cycles_per_input_token": 264.9034992784993,
+          "global_cycles_per_input_token": 264.1862348178138,
+          "mean_switches_per_batch": 7230.272727272727,
+          "mean_wait_cycles_per_batch": 75079.21212121213,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 9.57165227754603,
+            "cycles_per_input_token_percent": 9.476735621216568,
+            "switches_percent": 13.754513809818144
+          }
+        },
+        "9-16": {
+          "range": {
+            "min_tokens": 9,
+            "max_tokens": 16
+          },
+          "batch_count": 266,
+          "total_input_tokens": 3259,
+          "mean_input_tokens": 12.25187969924812,
+          "mean_prefill_cycles": 2868.5112781954886,
+          "p95_prefill_cycles": 3561.75,
+          "mean_cycles_per_input_token": 235.71904527177082,
+          "global_cycles_per_input_token": 234.12826020251612,
+          "mean_switches_per_batch": 10135.80827067669,
+          "mean_wait_cycles_per_batch": 193126.63533834586,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 13.68916861416087,
+            "cycles_per_input_token_percent": 13.409280285013267,
+            "switches_percent": 22.81253390751733
+          }
+        },
+        "17-24": {
+          "range": {
+            "min_tokens": 17,
+            "max_tokens": 24
+          },
+          "batch_count": 86,
+          "total_input_tokens": 1687,
+          "mean_input_tokens": 19.61627906976744,
+          "mean_prefill_cycles": 4180.930232558139,
+          "p95_prefill_cycles": 4769.5,
+          "mean_cycles_per_input_token": 213.72390424287107,
+          "global_cycles_per_input_token": 213.13574392412568,
+          "mean_switches_per_batch": 13907.10465116279,
+          "mean_wait_cycles_per_batch": 460415.33720930235,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 17.47078103912082,
+            "cycles_per_input_token_percent": 17.37717579183395,
+            "switches_percent": 32.30660298866995
+          }
+        },
+        "25+": {
+          "range": {
+            "min_tokens": 25,
+            "max_tokens": null
+          },
+          "batch_count": 19,
+          "total_input_tokens": 550,
+          "mean_input_tokens": 28.94736842105263,
+          "mean_prefill_cycles": 5775.1578947368425,
+          "p95_prefill_cycles": 7092.5999999999985,
+          "mean_cycles_per_input_token": 200.0487885958684,
+          "global_cycles_per_input_token": 199.50545454545454,
+          "mean_switches_per_batch": 17630.473684210527,
+          "mean_wait_cycles_per_batch": 964770.4210526316,
+          "improvement_vs_no_reuse": {
+            "prefill_mean_percent": 20.88368471144694,
+            "cycles_per_input_token_percent": 20.771528789534436,
+            "switches_percent": 41.204419598585304
+          }
+        }
+      },
+      "output": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\prefill_scheduler\\largest_batch_reuse\\prefill_evaluation.json",
+      "improvement_vs_no_reuse": {
+        "prefill_mean_percent": 15.223403553314421,
+        "cycles_per_input_token_percent": 14.193918744692358,
+        "p95_percent": 18.801840222975923,
+        "switches_percent": 26.865295950033328
+      }
+    }
+  }
+}

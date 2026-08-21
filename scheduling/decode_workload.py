@@ -87,7 +87,11 @@ from typing import Iterator
 from mapping.trace_profile import (
     DEFAULT_TRACE_ROOT,
     NUM_MOE_LAYERS,
-    discover_trace_files,
+)
+from mapping.trace_split import (
+    EVALUATION_SUBSET,
+    TRACE_SUBSETS,
+    resolve_trace_files,
 )
 
 from scheduling.trace_workload import (
@@ -396,6 +400,8 @@ def iter_decode_tokens(
         DEFAULT_TRACE_ROOT
     ),
     *,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     max_files: int | None = None,
     max_tokens: int | None = None,
     stats: DecodeWorkloadStats | None = None,
@@ -434,8 +440,10 @@ def iter_decode_tokens(
     )
 
     files = list(
-        discover_trace_files(
-            root
+        resolve_trace_files(
+            trace_root=root,
+            manifest_path=trace_manifest,
+            subset=trace_subset,
         )
     )
 
@@ -724,6 +732,8 @@ def scan_decode_workload(
         DEFAULT_TRACE_ROOT
     ),
     *,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     max_files: int | None = None,
     max_tokens: int | None = None,
     strict_singleton: bool = True,
@@ -739,6 +749,9 @@ def scan_decode_workload(
             trace_root=(
                 trace_root
             ),
+
+            trace_manifest=trace_manifest,
+            trace_subset=trace_subset,
 
             max_files=(
                 max_files
@@ -901,6 +914,19 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="可选 Profile/Evaluation split manifest；不填则扫描全部 Trace。",
+    )
+
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
+    )
+
+    parser.add_argument(
         "--max-files",
         type=int,
         default=None,
@@ -948,6 +974,9 @@ def main() -> None:
             trace_root=(
                 args.root
             ),
+
+            trace_manifest=args.trace_manifest,
+            trace_subset=args.trace_subset,
 
             max_files=(
                 args.max_files

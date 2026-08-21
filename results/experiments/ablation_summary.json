@@ -1,0 +1,146 @@
+{
+  "ablation_version": 1,
+  "scope": "MoE Expert Prefill / Decode mapping ablation",
+  "experiments": [
+    {
+      "experiment": "Naive",
+      "pairing_mode": "Sequential",
+      "mapping_mode": "Round-Robin",
+      "pairing_cost": 2977431,
+      "mapping_conflict_cost": 178650012,
+      "pre_conflict_cost": 144318552,
+      "down_conflict_cost": 34331460,
+      "prefill_mean_latency": 4007.6425742574256,
+      "prefill_p50_latency": 3703.0,
+      "prefill_p95_latency": 6473.449999999999,
+      "prefill_p99_latency": 7907.8099999999995,
+      "prefill_max_latency": 16236.0,
+      "prefill_mean_cycles_per_input_token": 278.5198454400685,
+      "prefill_global_cycles_per_input_token": 272.95047034626924,
+      "decode_mean_cycles_per_token": 581.9448750537719,
+      "decode_p50_cycles_per_token": 582.0,
+      "decode_p95_cycles_per_token": 610.0,
+      "decode_p99_cycles_per_token": 622.0,
+      "decode_max_cycles_per_token": 660.0
+    },
+    {
+      "experiment": "Pairing Only",
+      "pairing_mode": "Trace-aware",
+      "mapping_mode": "Round-Robin",
+      "pairing_cost": 439156,
+      "mapping_conflict_cost": 178107407,
+      "pre_conflict_cost": 143775947,
+      "down_conflict_cost": 34331460,
+      "prefill_mean_latency": 4020.668811881188,
+      "prefill_p50_latency": 3716.0,
+      "prefill_p95_latency": 6503.4,
+      "prefill_p99_latency": 8024.199999999999,
+      "prefill_max_latency": 16508.0,
+      "prefill_mean_cycles_per_input_token": 279.1523096964132,
+      "prefill_global_cycles_per_input_token": 273.8376546748036,
+      "decode_mean_cycles_per_token": 584.3537522975246,
+      "decode_p50_cycles_per_token": 584.0,
+      "decode_p95_cycles_per_token": 612.0,
+      "decode_p99_cycles_per_token": 624.0,
+      "decode_max_cycles_per_token": 670.0
+    },
+    {
+      "experiment": "Mapping Only",
+      "pairing_mode": "Sequential",
+      "mapping_mode": "Trace-aware",
+      "pairing_cost": 2977431,
+      "mapping_conflict_cost": 134175599,
+      "pre_conflict_cost": 113864260,
+      "down_conflict_cost": 20311339,
+      "prefill_mean_latency": 3308.3935643564355,
+      "prefill_p50_latency": 3084.0,
+      "prefill_p95_latency": 5196.9,
+      "prefill_p99_latency": 6418.81,
+      "prefill_max_latency": 12664.0,
+      "prefill_mean_cycles_per_input_token": 231.311943806442,
+      "prefill_global_cycles_per_input_token": 225.3263764793149,
+      "decode_mean_cycles_per_token": 518.365468695006,
+      "decode_p50_cycles_per_token": 526.0,
+      "decode_p95_cycles_per_token": 560.0,
+      "decode_p99_cycles_per_token": 572.0,
+      "decode_max_cycles_per_token": 610.0
+    },
+    {
+      "experiment": "Full",
+      "pairing_mode": "Trace-aware",
+      "mapping_mode": "Trace-aware",
+      "pairing_cost": 439156,
+      "mapping_conflict_cost": 133349805,
+      "pre_conflict_cost": 113038466,
+      "down_conflict_cost": 20311339,
+      "prefill_mean_latency": 3308.2742574257427,
+      "prefill_p50_latency": 3085.5,
+      "prefill_p95_latency": 5184.299999999998,
+      "prefill_p99_latency": 6445.399999999998,
+      "prefill_max_latency": 12505.0,
+      "prefill_mean_cycles_per_input_token": 231.2890868590095,
+      "prefill_global_cycles_per_input_token": 225.31825078391046,
+      "decode_mean_cycles_per_token": 517.6202416800281,
+      "decode_p50_cycles_per_token": 526.0,
+      "decode_p95_cycles_per_token": 560.0,
+      "decode_p99_cycles_per_token": 572.0,
+      "decode_max_cycles_per_token": 614.0
+    }
+  ],
+  "improvements_vs_naive": [
+    {
+      "experiment": "Naive",
+      "prefill_mean_improvement_percent": 0.0,
+      "prefill_cycles_per_input_token_improvement_percent": 0.0,
+      "decode_mean_improvement_percent": 0.0,
+      "decode_p95_improvement_percent": 0.0,
+      "pairing_cost_reduction_percent": 0.0,
+      "mapping_conflict_cost_reduction_percent": 0.0
+    },
+    {
+      "experiment": "Pairing Only",
+      "prefill_mean_improvement_percent": -0.32503491472604823,
+      "prefill_cycles_per_input_token_improvement_percent": -0.2270804995405039,
+      "decode_mean_improvement_percent": -0.4139356401291696,
+      "decode_p95_improvement_percent": -0.32786885245901637,
+      "pairing_cost_reduction_percent": 85.25050622499732,
+      "mapping_conflict_cost_reduction_percent": 0.30372514052783833
+    },
+    {
+      "experiment": "Mapping Only",
+      "prefill_mean_improvement_percent": 17.447888551552122,
+      "prefill_cycles_per_input_token_improvement_percent": 16.949564782012853,
+      "decode_mean_improvement_percent": 10.925331433306475,
+      "decode_p95_improvement_percent": 8.19672131147541,
+      "pairing_cost_reduction_percent": 0.0,
+      "mapping_conflict_cost_reduction_percent": 24.894715932064983
+    },
+    {
+      "experiment": "Full",
+      "prefill_mean_improvement_percent": 17.45086553686162,
+      "prefill_cycles_per_input_token_improvement_percent": 16.957771359679295,
+      "decode_mean_improvement_percent": 11.053389441362485,
+      "decode_p95_improvement_percent": 8.19672131147541,
+      "pairing_cost_reduction_percent": 85.25050622499732,
+      "mapping_conflict_cost_reduction_percent": 25.35695715486434
+    }
+  ],
+  "sources": {
+    "naive": {
+      "mapping": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\mappings\\mapping_naive_N4_H7168_W4096.json",
+      "summary": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\naive\\phase_evaluation_summary.json"
+    },
+    "pairing_only": {
+      "mapping": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\mappings\\mapping_pairing_only_N4_H7168_W4096.json",
+      "summary": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\pairing_only\\phase_evaluation_summary.json"
+    },
+    "mapping_only": {
+      "mapping": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\mappings\\mapping_mapping_only_N4_H7168_W4096.json",
+      "summary": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\experiments\\mapping_only\\phase_evaluation_summary.json"
+    },
+    "full": {
+      "mapping": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\mappings\\mapping_baseline_N4_H7168_W4096.json",
+      "summary": "C:\\Users\\Qian Cheng\\Desktop\\suanfa.vscode\\MoE_PIM_Simulator\\results\\phase_evaluation_summary.json"
+    }
+  }
+}

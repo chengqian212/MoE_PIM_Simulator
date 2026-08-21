@@ -70,6 +70,12 @@ from dataclasses import (
 
 from pathlib import Path
 
+from mapping.trace_split import (
+    EVALUATION_SUBSET,
+    TRACE_SUBSETS,
+    manifest_protocol_summary,
+)
+
 
 # ============================================================
 # 默认路径
@@ -921,6 +927,10 @@ def save_phase_summary(
     prefill_path: Path | str,
 
     decode_path: Path | str,
+
+    trace_manifest: Path | str | None = None,
+
+    evaluation_subset: str = EVALUATION_SUBSET,
 ) -> Path:
 
     output = (
@@ -942,6 +952,18 @@ def save_phase_summary(
 
         "scope": (
             summary.scope
+        ),
+
+        "protocol": (
+            manifest_protocol_summary(
+                manifest_path=trace_manifest,
+                evaluation_subset=evaluation_subset,
+            )
+            if trace_manifest is not None
+            else {
+                "manifest": None,
+                "evaluation_subset": "all",
+            }
         ),
 
         "sources": {
@@ -1035,6 +1057,19 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="正式实验的 Profile/Held-out split manifest。",
+    )
+
+    parser.add_argument(
+        "--evaluation-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
+    )
+
+    parser.add_argument(
         "--no-save",
         action="store_true",
     )
@@ -1092,6 +1127,9 @@ def main() -> None:
                 decode_path=(
                     args.decode
                 ),
+
+                trace_manifest=args.trace_manifest,
+                evaluation_subset=args.evaluation_subset,
             )
         )
 

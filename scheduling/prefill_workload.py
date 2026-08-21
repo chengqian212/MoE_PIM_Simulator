@@ -144,7 +144,11 @@ from mapping.trace_profile import (
     EXPERTS_PER_TOKEN,
     NUM_MOE_LAYERS,
     TRACE_FIRST_MOE_LAYER,
-    discover_trace_files,
+)
+from mapping.trace_split import (
+    EVALUATION_SUBSET,
+    TRACE_SUBSETS,
+    resolve_trace_files,
 )
 
 from scheduling.trace_workload import (
@@ -1158,6 +1162,8 @@ def iter_trace_segment_batches(
         DEFAULT_TRACE_ROOT
     ),
     *,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     max_files: int | None = None,
     max_batches: int | None = None,
     stats: PrefillWorkloadStats | None = None,
@@ -1194,8 +1200,10 @@ def iter_trace_segment_batches(
     )
 
     files = list(
-        discover_trace_files(
-            root
+        resolve_trace_files(
+            trace_root=root,
+            manifest_path=trace_manifest,
+            subset=trace_subset,
         )
     )
 
@@ -1502,6 +1510,8 @@ def iter_trace_segment_batches(
 def iter_prefill_batches(
     trace_root: Path | str = DEFAULT_TRACE_ROOT,
     *,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     max_files: int | None = None,
     max_batches: int | None = None,
     stats: PrefillWorkloadStats | None = None,
@@ -1527,7 +1537,13 @@ def iter_prefill_batches(
     """
 
     root = Path(trace_root).resolve()
-    files = list(discover_trace_files(root))
+    files = list(
+        resolve_trace_files(
+            trace_root=root,
+            manifest_path=trace_manifest,
+            subset=trace_subset,
+        )
+    )
 
     if max_files is not None:
         if max_files <= 0:
@@ -1627,6 +1643,8 @@ def scan_prefill_workload(
         DEFAULT_TRACE_ROOT
     ),
     *,
+    trace_manifest: Path | str | None = None,
+    trace_subset: str = EVALUATION_SUBSET,
     max_files: int | None = None,
     max_batches: int | None = None,
     verbose: bool = True,
@@ -1644,6 +1662,9 @@ def scan_prefill_workload(
             trace_root=(
                 trace_root
             ),
+
+            trace_manifest=trace_manifest,
+            trace_subset=trace_subset,
 
             max_files=(
                 max_files
@@ -2258,6 +2279,20 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--trace-manifest",
+        type=Path,
+        default=None,
+        help="可选 Profile/Evaluation split manifest；不填则扫描全部 Trace。",
+    )
+
+    parser.add_argument(
+        "--trace-subset",
+        choices=TRACE_SUBSETS,
+        default=EVALUATION_SUBSET,
+        help="使用 manifest 中的哪个文件子集。",
+    )
+
+    parser.add_argument(
         "--max-files",
         type=int,
         default=None,
@@ -2310,6 +2345,9 @@ def main() -> None:
             trace_root=(
                 args.root
             ),
+
+            trace_manifest=args.trace_manifest,
+            trace_subset=args.trace_subset,
 
             max_files=(
                 args.max_files
