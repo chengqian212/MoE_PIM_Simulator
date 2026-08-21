@@ -39,6 +39,14 @@ from scheduling.prefill_evaluator import (
     save_prefill_evaluation,
 )
 from scheduling.prefill_scheduler import schedule_prefill_batch
+from scheduling.prefill_scheduling_mode import (
+    PREFILL_MODE_AGGRESSIVE_REUSE,
+    PREFILL_MODE_LARGEST_BATCH_REUSE,
+    PREFILL_MODE_NO_REUSE,
+    PREFILL_MODE_SWITCH_AWARE,
+    PREFILL_SCHEDULING_MODES,
+    normalize_prefill_scheduling_mode,
+)
 from scheduling.prefill_workload import (
     STAGE_PREFILL_CANDIDATE,
     PrefillWorkloadStats,
@@ -240,7 +248,13 @@ def _activation_cost(
 class FastPrefillScheduler:
     """Compact Prefill scheduler；正式 evaluator 可跳过重复 route validation。"""
 
-    def __init__(self, *, index: RuntimeIndex, rules: ExecutionRules) -> None:
+    def __init__(
+        self,
+        *,
+        index: RuntimeIndex,
+        rules: ExecutionRules,
+        scheduling_mode: str = PREFILL_MODE_SWITCH_AWARE,
+    ) -> None:
         if (
             rules.cross_subcube_cycles != 0
             or not rules.unlimited_parallel_subcubes
@@ -252,9 +266,299 @@ class FastPrefillScheduler:
 
         self.index = index
         self.rules = rules
+        self.scheduling_mode = normalize_prefill_scheduling_mode(scheduling_mode)
         self.tables = build_fast_tables(index)
         self.shared_expert_id = index.shared_expert_id
         self.num_subcubes = index.num_subcubes
+
+    def _schedule_layer_largest_batch_event(
+        self,
+        *,
+        layer_id: int,
+        routed_experts_by_token: tuple[tuple[int, ...], ...],
+        initial_state: tuple[int | None, ...],
+        charge_initial_activation: bool,
+    ) -> FastPrefillLayerResult:
+        """Largest-Batch 的紧凑事件式实现。
+
+        这个模式不能使用普通 Fast Prefill 的
+        "先 gate/up，后 down" 两阶段重排，因为 down 一旦在运行中 Ready，
+        就必须立刻参加当前 SC 的 Ready-WC batch-size 竞争。
+
+        这里仍然不创建 ScheduledPrefillTask 对象，但保持与 Exact 相同的：
+        - 全局完成事件顺序；
+        - down 动态创建时机；
+        - active WC 复用；
+        - Largest-Batch Ready 数量选择；
+        - wait / switch / final state 统计。
+        """
+
+        layer_table = self.tables[layer_id]
+        token_count = len(routed_experts_by_token)
+        shared = self.shared_expert_id
+        nsc = self.num_subcubes
+        compute_cost = self.rules.compute_cycles
+        switch_cost = self.rules.switch_cycles
+
+        active_cube = list(initial_state)
+        running = [False] * nsc
+        last_finish = [0] * nsc
+
+        task_count = [0] * nsc
+        compute_cycles = [0] * nsc
+        activation_cycles = [0] * nsc
+        switch_count = [0] * nsc
+        initial_count = [0] * nsc
+        wait_cycles = [0] * nsc
+        max_wait_by_sc = [0] * nsc
+        max_wait = 0
+
+        # entry = (ready_time, route_rank, token_index, matrix_code, cube_id, expert_id)
+        # matrix_code: gate=0, up=1, down=2
+        ready_by_sc: list[dict[int, list[tuple[int, int, int, int, int, int]]]] = [
+            {} for _ in range(nsc)
+        ]
+
+        active_ids_by_token: list[tuple[int, ...]] = []
+        active_count = len(routed_experts_by_token[0]) + (1 if shared is not None else 0)
+        gate_finish = [[-1] * active_count for _ in range(token_count)]
+        up_finish = [[-1] * active_count for _ in range(token_count)]
+        down_created = [[False] * active_count for _ in range(token_count)]
+
+        def push_ready(
+            *,
+            subcube_id: int,
+            ready_time: int,
+            route_rank: int,
+            token_index: int,
+            matrix_code: int,
+            cube_id: int,
+            expert_id: int,
+        ) -> None:
+            heap = ready_by_sc[subcube_id].setdefault(cube_id, [])
+            heapq.heappush(
+                heap,
+                (
+                    ready_time,
+                    route_rank,
+                    token_index,
+                    matrix_code,
+                    cube_id,
+                    expert_id,
+                ),
+            )
+
+        # t=0: 所有 gate / up Ready。
+        for token_index, route in enumerate(routed_experts_by_token):
+            ids = route if shared is None else route + (shared,)
+            active_ids_by_token.append(ids)
+            for rank, expert_id in enumerate(ids):
+                expert = layer_table[expert_id]
+                push_ready(
+                    subcube_id=expert.gate.subcube_id,
+                    ready_time=0,
+                    route_rank=rank,
+                    token_index=token_index,
+                    matrix_code=0,
+                    cube_id=expert.gate.cube_id,
+                    expert_id=expert_id,
+                )
+                push_ready(
+                    subcube_id=expert.up.subcube_id,
+                    ready_time=0,
+                    route_rank=rank,
+                    token_index=token_index,
+                    matrix_code=1,
+                    cube_id=expert.up.cube_id,
+                    expert_id=expert_id,
+                )
+
+        expected_task_count = token_count * active_count * 3
+        completed = 0
+        current_time = 0
+        serial = 0
+
+        # event = (finish_time, serial, sc, entry)
+        running_heap: list[
+            tuple[int, int, int, tuple[int, int, int, int, int, int]]
+        ] = []
+
+        def pop_next_for_sc(sc: int):
+            groups = ready_by_sc[sc]
+            if not groups:
+                return None
+
+            current_cube = active_cube[sc]
+            if current_cube is not None:
+                heap = groups.get(current_cube)
+                if heap:
+                    entry = heapq.heappop(heap)
+                    if not heap:
+                        del groups[current_cube]
+                    return entry
+
+            # 当前 active WC 没有 Ready Task：
+            # 选择当前 Ready Task 数最多的 WC；数量相同按该 WC 的
+            # 最早任务 base priority，再按 cube_id 确定性 tie-break。
+            target_cube = min(
+                groups,
+                key=lambda cube_id: (
+                    -len(groups[cube_id]),
+                    groups[cube_id][0][0],  # ready_time
+                    groups[cube_id][0][1],  # route_rank
+                    groups[cube_id][0][2],  # token_index
+                    groups[cube_id][0][3],  # matrix_priority/code
+                    cube_id,
+                ),
+            )
+            heap = groups[target_cube]
+            entry = heapq.heappop(heap)
+            if not heap:
+                del groups[target_cube]
+            return entry
+
+        def dispatch_idle_scs() -> int:
+            nonlocal serial, max_wait
+            dispatched = 0
+            for sc in range(nsc):
+                if running[sc]:
+                    continue
+                entry = pop_next_for_sc(sc)
+                if entry is None:
+                    continue
+
+                ready, _rank, _token, _matrix, cube_id, _expert = entry
+                if ready > current_time:
+                    raise PrefillFastEvaluatorError(
+                        "Largest-Batch Fast 发现未来任务被提前放入 Ready 集合。"
+                    )
+
+                activation, is_switch, is_initial = _activation_cost(
+                    active_cube[sc],
+                    cube_id,
+                    switch_cycles=switch_cost,
+                    charge_initial_activation=charge_initial_activation,
+                )
+                wait = current_time - ready
+                wait_cycles[sc] += wait
+                if wait > max_wait_by_sc[sc]:
+                    max_wait_by_sc[sc] = wait
+                if wait > max_wait:
+                    max_wait = wait
+
+                activation_cycles[sc] += activation
+                switch_count[sc] += int(is_switch)
+                initial_count[sc] += int(is_initial)
+                task_count[sc] += 1
+                compute_cycles[sc] += compute_cost
+
+                finish = current_time + activation + compute_cost
+                active_cube[sc] = cube_id
+                running[sc] = True
+                heapq.heappush(running_heap, (finish, serial, sc, entry))
+                serial += 1
+                dispatched += 1
+            return dispatched
+
+        while completed < expected_task_count:
+            dispatch_idle_scs()
+
+            if not running_heap:
+                raise PrefillFastEvaluatorError(
+                    "Largest-Batch Fast 调度死锁：没有运行任务，也没有可执行任务。"
+                )
+
+            next_finish = running_heap[0][0]
+            if next_finish < current_time:
+                raise PrefillFastEvaluatorError(
+                    "Largest-Batch Fast 内部时间状态错误。"
+                )
+            current_time = next_finish
+
+            finished_now: list[
+                tuple[int, tuple[int, int, int, int, int, int]]
+            ] = []
+            while running_heap and running_heap[0][0] == current_time:
+                _finish, _serial, sc, entry = heapq.heappop(running_heap)
+                if not running[sc]:
+                    raise PrefillFastEvaluatorError(
+                        "Largest-Batch Fast running state 与事件堆不一致。"
+                    )
+                running[sc] = False
+                last_finish[sc] = current_time
+                completed += 1
+                finished_now.append((sc, entry))
+
+            # Exact 会在同一时刻所有完成事件处理完之后，
+            # 再统一创建新 Ready 的 down。
+            affected: set[tuple[int, int, int]] = set()
+            # (token, rank, expert_id)
+            for _sc, entry in finished_now:
+                _ready, rank, token_index, matrix_code, _cube, expert_id = entry
+                if matrix_code == 0:
+                    gate_finish[token_index][rank] = current_time
+                    affected.add((token_index, rank, expert_id))
+                elif matrix_code == 1:
+                    up_finish[token_index][rank] = current_time
+                    affected.add((token_index, rank, expert_id))
+
+            for token_index, rank, expert_id in sorted(
+                affected,
+                key=lambda item: (item[1], item[0], item[2]),
+            ):
+                if down_created[token_index][rank]:
+                    continue
+                gate_done = gate_finish[token_index][rank]
+                up_done = up_finish[token_index][rank]
+                if gate_done < 0 or up_done < 0:
+                    continue
+
+                ready_time = max(gate_done, up_done)
+                down = layer_table[expert_id].down
+                push_ready(
+                    subcube_id=down.subcube_id,
+                    ready_time=ready_time,
+                    route_rank=rank,
+                    token_index=token_index,
+                    matrix_code=2,
+                    cube_id=down.cube_id,
+                    expert_id=expert_id,
+                )
+                down_created[token_index][rank] = True
+
+        if completed != expected_task_count:
+            raise PrefillFastEvaluatorError(
+                "Largest-Batch Fast 完成任务数错误。"
+            )
+
+        total_cycles = max(last_finish, default=0)
+        subcube_stats = tuple(
+            FastPrefillSubcubeLayerStats(
+                subcube_id=sc,
+                task_count=task_count[sc],
+                compute_cycles=compute_cycles[sc],
+                activation_cycles=activation_cycles[sc],
+                switch_count=switch_count[sc],
+                initial_activation_count=initial_count[sc],
+                busy_cycles=compute_cycles[sc] + activation_cycles[sc],
+                wait_cycles=wait_cycles[sc],
+                max_task_wait_cycles=max_wait_by_sc[sc],
+                last_finish_time=last_finish[sc],
+                initial_active_cube_id=initial_state[sc],
+                final_active_cube_id=active_cube[sc],
+            )
+            for sc in range(nsc)
+        )
+
+        return FastPrefillLayerResult(
+            layer_id=layer_id,
+            token_count=token_count,
+            total_cycles=total_cycles,
+            subcube_stats=subcube_stats,
+            initial_active_cube_by_subcube=initial_state,
+            final_active_cube_by_subcube=tuple(active_cube),
+            max_task_wait_cycles=max_wait,
+        )
 
     def schedule_layer(
         self,
@@ -281,6 +585,14 @@ class FastPrefillScheduler:
                     layer_id=layer_id,
                     routed_expert_ids=route,
                 )
+
+        if self.scheduling_mode == PREFILL_MODE_LARGEST_BATCH_REUSE:
+            return self._schedule_layer_largest_batch_event(
+                layer_id=layer_id,
+                routed_experts_by_token=routed_experts_by_token,
+                initial_state=initial_state,
+                charge_initial_activation=charge_initial_activation,
+            )
 
         layer_table = self.tables[layer_id]
         active_cube = list(initial_state)
@@ -326,8 +638,8 @@ class FastPrefillScheduler:
 
         # ----------------------------------------------------
         # Pre stage：所有 gate/up ready_time 都是 0。
-        # exact priority 会让当前 active cube 的同类任务连续执行；
-        # 之后按每个 cube 最小 task key 决定下一组。
+        # no_reuse：按原始确定性顺序逐任务执行；
+        # 其余两种模式会把同一 active cube 的 Ready Task 连续执行。
         # ----------------------------------------------------
         for sc in range(nsc):
             groups = pre_groups[sc]
@@ -335,60 +647,94 @@ class FastPrefillScheduler:
                 continue
 
             for items in groups.values():
-                items.sort()  # rank -> token -> matrix_code
-
-            initial_cube = active_cube[sc]
-            order: list[int] = []
-            if initial_cube in groups:
-                order.append(initial_cube)  # type: ignore[arg-type]
-
-            remaining = [cube for cube in groups if cube != initial_cube]
-            remaining.sort(
-                key=lambda cube: (
-                    groups[cube][0][0],
-                    groups[cube][0][1],
-                    groups[cube][0][2],
-                    cube,
-                )
-            )
-            order.extend(remaining)
+                items.sort()
 
             current_time = 0
 
-            for cube_id in order:
-                items = groups[cube_id]
-                activation, is_switch, is_initial = _activation_cost(
-                    active_cube[sc],
-                    cube_id,
-                    switch_cycles=switch_cost,
-                    charge_initial_activation=charge_initial_activation,
-                )
+            if self.scheduling_mode == PREFILL_MODE_NO_REUSE:
+                flat_tasks: list[tuple[int, int, int, int]] = []
+                for cube_id, items in groups.items():
+                    for rank, token_index, matrix_code in items:
+                        flat_tasks.append((rank, token_index, matrix_code, cube_id))
+                flat_tasks.sort()
 
-                if is_switch:
-                    switch_count[sc] += 1
-                if is_initial:
-                    initial_count[sc] += 1
-
-                for item_index, (rank, token_index, matrix_code) in enumerate(items):
-                    dispatch_time = current_time
-                    wait = dispatch_time  # pre ready_time == 0
+                for rank, token_index, matrix_code, cube_id in flat_tasks:
+                    activation, is_switch, is_initial = _activation_cost(
+                        active_cube[sc], cube_id,
+                        switch_cycles=switch_cost,
+                        charge_initial_activation=charge_initial_activation,
+                    )
+                    switch_count[sc] += int(is_switch)
+                    initial_count[sc] += int(is_initial)
+                    wait = current_time
                     wait_cycles[sc] += wait
-                    if wait > max_wait_by_sc[sc]:
-                        max_wait_by_sc[sc] = wait
-                    if wait > max_wait:
-                        max_wait = wait
-
-                    task_activation = activation if item_index == 0 else 0
-                    activation_cycles[sc] += task_activation
-                    current_time += task_activation + compute_cost
+                    max_wait_by_sc[sc] = max(max_wait_by_sc[sc], wait)
+                    max_wait = max(max_wait, wait)
+                    activation_cycles[sc] += activation
+                    current_time += activation + compute_cost
                     task_count[sc] += 1
                     compute_cycles[sc] += compute_cost
                     active_cube[sc] = cube_id
-
                     if matrix_code == 0:
                         gate_finish[token_index][rank] = current_time
                     else:
                         up_finish[token_index][rank] = current_time
+            else:
+                initial_cube = active_cube[sc]
+                order: list[int] = []
+                if initial_cube in groups:
+                    order.append(initial_cube)  # type: ignore[arg-type]
+                remaining = [cube for cube in groups if cube != initial_cube]
+
+                if self.scheduling_mode == PREFILL_MODE_LARGEST_BATCH_REUSE:
+                    # Pre 阶段所有 gate/up 都在 t=0 Ready。
+                    # 因此当前 WC 耗尽后，Exact 会选择 Ready Task 数最多的 WC，
+                    # 并把该 WC 连续执行完。
+                    remaining.sort(
+                        key=lambda cube: (
+                            -len(groups[cube]),
+                            groups[cube][0][0],
+                            groups[cube][0][1],
+                            groups[cube][0][2],
+                            cube,
+                        )
+                    )
+                else:
+                    remaining.sort(
+                        key=lambda cube: (
+                            groups[cube][0][0],
+                            groups[cube][0][1],
+                            groups[cube][0][2],
+                            cube,
+                        )
+                    )
+
+                order.extend(remaining)
+
+                for cube_id in order:
+                    items = groups[cube_id]
+                    activation, is_switch, is_initial = _activation_cost(
+                        active_cube[sc], cube_id,
+                        switch_cycles=switch_cost,
+                        charge_initial_activation=charge_initial_activation,
+                    )
+                    switch_count[sc] += int(is_switch)
+                    initial_count[sc] += int(is_initial)
+                    for item_index, (rank, token_index, matrix_code) in enumerate(items):
+                        wait = current_time
+                        wait_cycles[sc] += wait
+                        max_wait_by_sc[sc] = max(max_wait_by_sc[sc], wait)
+                        max_wait = max(max_wait, wait)
+                        task_activation = activation if item_index == 0 else 0
+                        activation_cycles[sc] += task_activation
+                        current_time += task_activation + compute_cost
+                        task_count[sc] += 1
+                        compute_cycles[sc] += compute_cost
+                        active_cube[sc] = cube_id
+                        if matrix_code == 0:
+                            gate_finish[token_index][rank] = current_time
+                        else:
+                            up_finish[token_index][rank] = current_time
 
             last_finish[sc] = current_time
 
@@ -414,8 +760,174 @@ class FastPrefillScheduler:
             if not down_tasks:
                 continue
 
-            # 全局 heap + 每 cube heap，lazy deletion。
-            # 精确实现：ready_time -> active cube -> rank -> token -> cube。
+            # ------------------------------------------------
+            # Largest-Batch Reuse：事件式 Ready 集合。
+            #
+            # Fast 版不能把未来 down 提前计入 batch size。
+            # 因此按 ready_time 把任务逐步移入 Ready 集合；
+            # 当前 WC 有 Ready Task 就继续，否则选择 Ready 数最多的 WC。
+            # ------------------------------------------------
+            if self.scheduling_mode == PREFILL_MODE_LARGEST_BATCH_REUSE:
+                # future entry: (ready, rank, token, cube, serial)
+                future = [
+                    (ready, rank, token_index, cube_id, task_id)
+                    for task_id, (ready, rank, token_index, cube_id)
+                    in enumerate(down_tasks)
+                ]
+                heapq.heapify(future)
+
+                # 每个 cube 当前已经 Ready 的任务最小堆。
+                ready_heaps: dict[int, list[tuple[int, int, int, int, int]]] = {}
+                ready_count: dict[int, int] = {}
+                total_ready = 0
+
+                # max-ready heap 使用 lazy version：
+                # (-ready_count, best_ready, best_rank, best_token, cube, version)
+                batch_heap: list[tuple[int, int, int, int, int, int]] = []
+                version: dict[int, int] = {}
+
+                def push_cube_state(cube_id: int) -> None:
+                    heap = ready_heaps.get(cube_id)
+                    count = ready_count.get(cube_id, 0)
+                    version[cube_id] = version.get(cube_id, 0) + 1
+                    if not heap or count <= 0:
+                        return
+                    best = heap[0]
+                    heapq.heappush(
+                        batch_heap,
+                        (
+                            -count,
+                            best[0],
+                            best[1],
+                            best[2],
+                            cube_id,
+                            version[cube_id],
+                        ),
+                    )
+
+                def release_ready(now: int) -> None:
+                    nonlocal total_ready
+                    touched: set[int] = set()
+                    while future and future[0][0] <= now:
+                        entry = heapq.heappop(future)
+                        cube_id = entry[3]
+                        heapq.heappush(ready_heaps.setdefault(cube_id, []), entry)
+                        ready_count[cube_id] = ready_count.get(cube_id, 0) + 1
+                        total_ready += 1
+                        touched.add(cube_id)
+                    for cube_id in touched:
+                        push_cube_state(cube_id)
+
+                def pop_from_cube(cube_id: int):
+                    nonlocal total_ready
+                    heap = ready_heaps[cube_id]
+                    entry = heapq.heappop(heap)
+                    ready_count[cube_id] -= 1
+                    total_ready -= 1
+                    push_cube_state(cube_id)
+                    return entry
+
+                def pop_largest_cube() -> int:
+                    while batch_heap:
+                        (
+                            neg_count,
+                            best_ready,
+                            best_rank,
+                            best_token,
+                            cube_id,
+                            entry_version,
+                        ) = heapq.heappop(batch_heap)
+
+                        if entry_version != version.get(cube_id):
+                            continue
+                        heap = ready_heaps.get(cube_id)
+                        count = ready_count.get(cube_id, 0)
+                        if not heap or count <= 0:
+                            continue
+                        best = heap[0]
+                        current_key = (
+                            -count,
+                            best[0],
+                            best[1],
+                            best[2],
+                            cube_id,
+                            entry_version,
+                        )
+                        if current_key != (
+                            neg_count,
+                            best_ready,
+                            best_rank,
+                            best_token,
+                            cube_id,
+                            entry_version,
+                        ):
+                            # 理论上 version 已经足以排除陈旧项；保守重推。
+                            push_cube_state(cube_id)
+                            continue
+                        return cube_id
+                    raise PrefillFastEvaluatorError(
+                        "Largest-Batch Ready heap 意外为空。"
+                    )
+
+                remaining = len(down_tasks)
+                current_time = last_finish[sc]
+
+                while remaining:
+                    release_ready(current_time)
+
+                    if total_ready <= 0:
+                        if not future:
+                            raise PrefillFastEvaluatorError(
+                                "Largest-Batch Down 调度死锁。"
+                            )
+                        current_time = max(current_time, future[0][0])
+                        release_ready(current_time)
+
+                    current_cube = active_cube[sc]
+                    if (
+                        current_cube is not None
+                        and ready_count.get(current_cube, 0) > 0
+                    ):
+                        target_cube = current_cube
+                    else:
+                        target_cube = pop_largest_cube()
+
+                    ready, _rank, _token_index, cube_id, _task_id = pop_from_cube(
+                        target_cube
+                    )
+                    remaining -= 1
+
+                    dispatch_time = current_time
+                    wait = dispatch_time - ready
+                    wait_cycles[sc] += wait
+                    if wait > max_wait_by_sc[sc]:
+                        max_wait_by_sc[sc] = wait
+                    if wait > max_wait:
+                        max_wait = wait
+
+                    activation, is_switch, is_initial = _activation_cost(
+                        active_cube[sc],
+                        cube_id,
+                        switch_cycles=switch_cost,
+                        charge_initial_activation=charge_initial_activation,
+                    )
+                    activation_cycles[sc] += activation
+                    if is_switch:
+                        switch_count[sc] += 1
+                    if is_initial:
+                        initial_count[sc] += 1
+
+                    current_time += activation + compute_cost
+                    task_count[sc] += 1
+                    compute_cycles[sc] += compute_cost
+                    active_cube[sc] = cube_id
+
+                last_finish[sc] = current_time
+                continue
+
+            # ------------------------------------------------
+            # 原三种策略：保留已经验证过的 Fast 路径。
+            # ------------------------------------------------
             global_heap: list[tuple[int, int, int, int, int]] = []
             cube_heaps: dict[int, list[tuple[int, int, int, int, int]]] = {}
             alive = [True] * len(down_tasks)
@@ -441,16 +953,29 @@ class FastPrefillScheduler:
                 selected: tuple[int, int, int, int, int] | None = None
                 current_cube = active_cube[sc]
 
-                if current_cube is not None:
-                    same_heap = cube_heaps.get(current_cube)
-                    if same_heap:
-                        clean(same_heap)
-                        if same_heap and same_heap[0][0] == min_ready:
-                            selected = heapq.heappop(same_heap)
-
-                if selected is None:
+                if self.scheduling_mode == PREFILL_MODE_NO_REUSE:
                     clean(global_heap)
                     selected = heapq.heappop(global_heap)
+                elif self.scheduling_mode == PREFILL_MODE_SWITCH_AWARE:
+                    if current_cube is not None:
+                        same_heap = cube_heaps.get(current_cube)
+                        if same_heap:
+                            clean(same_heap)
+                            if same_heap and same_heap[0][0] == min_ready:
+                                selected = heapq.heappop(same_heap)
+                    if selected is None:
+                        clean(global_heap)
+                        selected = heapq.heappop(global_heap)
+                else:
+                    if current_cube is not None:
+                        same_heap = cube_heaps.get(current_cube)
+                        if same_heap:
+                            clean(same_heap)
+                            if same_heap and same_heap[0][0] <= current_time:
+                                selected = heapq.heappop(same_heap)
+                    if selected is None:
+                        clean(global_heap)
+                        selected = heapq.heappop(global_heap)
 
                 ready, _rank, _token_index, cube_id, task_id = selected
                 if not alive[task_id]:
@@ -682,9 +1207,12 @@ def _init_prefill_worker(
     index: RuntimeIndex,
     rules: ExecutionRules,
     charge_initial_activation: bool,
+    scheduling_mode: str,
 ) -> None:
     global _PREFILL_WORKER_SCHEDULER, _PREFILL_WORKER_CHARGE_INITIAL
-    _PREFILL_WORKER_SCHEDULER = FastPrefillScheduler(index=index, rules=rules)
+    _PREFILL_WORKER_SCHEDULER = FastPrefillScheduler(
+        index=index, rules=rules, scheduling_mode=scheduling_mode
+    )
     _PREFILL_WORKER_CHARGE_INITIAL = charge_initial_activation
 
 
@@ -816,9 +1344,10 @@ def _init_prefill_file_worker(
     index: RuntimeIndex,
     rules: ExecutionRules,
     charge_initial_activation: bool,
+    scheduling_mode: str,
     trace_root: str,
 ) -> None:
-    _init_prefill_worker(index, rules, charge_initial_activation)
+    _init_prefill_worker(index, rules, charge_initial_activation, scheduling_mode)
     global _PREFILL_WORKER_TRACE_ROOT
     _PREFILL_WORKER_TRACE_ROOT = Path(trace_root).resolve()
 
@@ -926,6 +1455,7 @@ def validate_fast_against_exact(
     batch: TraceSegmentBatch,
     fast_result: FastPrefillBatchResult,
     charge_initial_activation: bool,
+    scheduling_mode: str,
 ) -> None:
     exact = schedule_prefill_batch(
         index=index,
@@ -933,6 +1463,7 @@ def validate_fast_against_exact(
         rules=rules,
         initial_active_cube_by_subcube=None,
         charge_initial_activation=charge_initial_activation,
+        scheduling_mode=scheduling_mode,
     )
 
     fast_layer_cycles = tuple(x.cycles for x in fast_result.layers)
@@ -994,6 +1525,7 @@ def _evaluate_prefill_fast_file_parallel(
     progress_every: int,
     verbose: bool,
     workers: int,
+    scheduling_mode: str,
 ) -> tuple[PrefillEvaluationSummary, tuple[PrefillEvaluationRecord, ...]]:
     root = Path(trace_root).resolve()
     files = list(discover_trace_files(root))
@@ -1005,7 +1537,11 @@ def _evaluate_prefill_fast_file_parallel(
     # exact-check 只做校验，正式统计由文件级 worker 全量生成。
     checked = 0
     if exact_check > 0:
-        scheduler = FastPrefillScheduler(index=index, rules=rules)
+        scheduler = FastPrefillScheduler(
+            index=index,
+            rules=rules,
+            scheduling_mode=scheduling_mode,
+        )
         exact_stats = PrefillWorkloadStats()
         for batch in iter_prefill_batches(
             trace_root=root,
@@ -1026,6 +1562,7 @@ def _evaluate_prefill_fast_file_parallel(
                 batch=batch,
                 fast_result=result,
                 charge_initial_activation=charge_initial_activation,
+                scheduling_mode=scheduling_mode,
             )
             checked += 1
             if verbose:
@@ -1055,7 +1592,13 @@ def _evaluate_prefill_fast_file_parallel(
         max_workers=workers,
         mp_context=ctx,
         initializer=_init_prefill_file_worker,
-        initargs=(index, rules, charge_initial_activation, str(root)),
+        initargs=(
+            index,
+            rules,
+            charge_initial_activation,
+            scheduling_mode,
+            str(root),
+        ),
     ) as executor:
         futures = [executor.submit(_prefill_worker_file_shard, shard) for shard in shards]
         pending = set(futures)
@@ -1125,6 +1668,7 @@ def evaluate_prefill_fast(
     verbose: bool = True,
     workers: int = 1,
     parallel_chunk_size: int = 8,
+    scheduling_mode: str = PREFILL_MODE_SWITCH_AWARE,
 ) -> tuple[PrefillEvaluationSummary, tuple[PrefillEvaluationRecord, ...]]:
     """
     Fast Prefill evaluator。
@@ -1136,6 +1680,7 @@ def evaluate_prefill_fast(
 
     if rules is None:
         rules = ExecutionRules()
+    scheduling_mode = normalize_prefill_scheduling_mode(scheduling_mode)
     if exact_check < 0:
         raise PrefillFastEvaluatorError("exact_check 不能小于 0。")
     if progress_every <= 0:
@@ -1158,6 +1703,7 @@ def evaluate_prefill_fast(
             progress_every=progress_every,
             verbose=verbose,
             workers=resolved_workers,
+            scheduling_mode=scheduling_mode,
         )
 
     if resolved_workers > 1 and max_batches is not None and verbose:
@@ -1166,7 +1712,11 @@ def evaluate_prefill_fast(
             "全量评估时才启用文件级多进程。"
         )
     resolved_workers = 1
-    scheduler = FastPrefillScheduler(index=index, rules=rules)
+    scheduler = FastPrefillScheduler(
+        index=index,
+        rules=rules,
+        scheduling_mode=scheduling_mode,
+    )
     workload_stats = PrefillWorkloadStats()
     batch_iterator = iter_prefill_batches(
         trace_root=trace_root,
@@ -1260,6 +1810,7 @@ def evaluate_prefill_fast(
             batch=batch,
             fast_result=result,
             charge_initial_activation=charge_initial_activation,
+            scheduling_mode=scheduling_mode,
         )
         checked += 1
         accumulate_batch(batch, result)
@@ -1302,7 +1853,12 @@ def evaluate_prefill_fast(
             max_workers=resolved_workers,
             mp_context=ctx,
             initializer=_init_prefill_worker,
-            initargs=(index, rules, charge_initial_activation),
+            initargs=(
+                index,
+                rules,
+                charge_initial_activation,
+                scheduling_mode,
+            ),
         ) as executor:
             for chunk_result in _bounded_parallel_prefill_chunks(
                 executor=executor,
@@ -1349,6 +1905,12 @@ def main() -> None:
     parser.add_argument("--max-batches", type=int, default=None)
     parser.add_argument("--exact-check", type=int, default=5)
     parser.add_argument(
+        "--scheduling-mode",
+        choices=PREFILL_SCHEDULING_MODES,
+        default=PREFILL_MODE_SWITCH_AWARE,
+        help="Prefill 调度：no_reuse / switch_aware / aggressive_reuse / largest_batch_reuse。",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=0,
@@ -1375,7 +1937,7 @@ def main() -> None:
         progress_every=args.progress_every,
         verbose=not args.quiet,
         workers=args.workers,
-
+        scheduling_mode=args.scheduling_mode,
     )
 
     print_prefill_evaluation_summary(

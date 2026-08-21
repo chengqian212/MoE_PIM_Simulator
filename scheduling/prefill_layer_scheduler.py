@@ -108,7 +108,12 @@ from scheduling.runtime_index import (
     load_runtime_index,
 )
 
-
+from scheduling.prefill_scheduling_mode import (
+    PREFILL_MODE_LARGEST_BATCH_REUSE,
+    PREFILL_MODE_SWITCH_AWARE,
+    normalize_prefill_scheduling_mode,
+    prefill_task_priority,
+)
 # ============================================================
 # 异常
 # ============================================================
@@ -871,114 +876,99 @@ def _activation_cost(
 # 同一 SC 的任务选择
 # ============================================================
 
-
 def _select_ready_task(
     *,
-    queue: list[
-        _PrefillTaskSpec
-    ],
-
+    queue: list[_PrefillTaskSpec],
     current_time: int,
-
-    active_cube_id: (
-        int | None
-    ),
-) -> (
-    _PrefillTaskSpec
-    | None
-):
+    active_cube_id: int | None,
+    scheduling_mode: str = PREFILL_MODE_SWITCH_AWARE,
+) -> _PrefillTaskSpec | None:
     """
-    Prefill Baseline 的 SC 内调度顺序：
-
-    1. ready_time 更早；
-
-    2. 如果当前已经激活的 Weight-Cube
-       还有 Ready Task，
-       优先继续当前 Weight-Cube；
-
-       这是 Prefill 批处理中减少重复 Switch
-       的关键；
-
-    3. 当前 Token 内的 route_rank；
-
-    4. token_index；
-
-    5. gate -> up -> down；
-
-    6. cube_id。
-
-    --------------------------------------------------------
-
-    例如：
-
-        当前 SC 已激活 E11 gate
-
-        Ready：
-            Token-0 E11 gate
-            Token-3 E11 gate
-            Token-8 E11 gate
-            Token-2 E37 up
-
-    那么会优先连续执行
-    E11 gate 的 Token 任务，
-    中间不重复 Switch。
+    按指定 Prefill 调度策略，
+    从当前已经 Ready 的任务中选择下一个任务。
     """
+
+    mode = normalize_prefill_scheduling_mode(
+        scheduling_mode
+    )
 
     candidates = [
         task
-
-        for task
-        in queue
-
-        if (
-            task.ready_time
-            <= current_time
-        )
+        for task in queue
+        if task.ready_time <= current_time
     ]
 
     if not candidates:
-
         return None
 
-    def key(
-        task: _PrefillTaskSpec,
-    ) -> tuple[
-        int,
-        int,
-        int,
-        int,
-        int,
-        int,
-    ]:
+    # --------------------------------------------------------
+    # Largest-Batch Reuse
+    #
+    # 1. 当前 active WC 只要还有 Ready Task，继续复用；
+    # 2. 否则统计“当前已经 Ready”的任务，选择 Ready Task 数最多的 WC；
+    # 3. 数量相同，用该 WC 最早的任务作为确定性 tie-break。
+    #
+    # 注意：这里只统计 candidates，因此不会偷看未来尚未 Ready 的 down。
+    # --------------------------------------------------------
+    if mode == PREFILL_MODE_LARGEST_BATCH_REUSE:
 
-        already_active = (
-            active_cube_id
-            == task.location.cube_id
+        def base_priority(task: _PrefillTaskSpec) -> tuple[int, ...]:
+            return (
+                task.ready_time,
+                task.route_rank,
+                task.token_index,
+                _matrix_priority(task.matrix_name),
+                task.location.cube_id,
+            )
+
+        if active_cube_id is not None:
+            active_candidates = [
+                task
+                for task in candidates
+                if task.location.cube_id == active_cube_id
+            ]
+            if active_candidates:
+                return min(active_candidates, key=base_priority)
+
+        count_by_cube: dict[int, int] = {}
+        best_task_by_cube: dict[int, _PrefillTaskSpec] = {}
+
+        for task in candidates:
+            cube_id = task.location.cube_id
+            count_by_cube[cube_id] = count_by_cube.get(cube_id, 0) + 1
+
+            previous = best_task_by_cube.get(cube_id)
+            if previous is None or base_priority(task) < base_priority(previous):
+                best_task_by_cube[cube_id] = task
+
+        target_cube_id = min(
+            count_by_cube,
+            key=lambda cube_id: (
+                -count_by_cube[cube_id],
+                base_priority(best_task_by_cube[cube_id]),
+                cube_id,
+            ),
         )
 
-        return (
-            task.ready_time,
-
-            0
-            if already_active
-            else 1,
-
-            task.route_rank,
-
-            task.token_index,
-
-            _matrix_priority(
-                task.matrix_name
-            ),
-
-            task.location.cube_id,
+        return min(
+            (task for task in candidates if task.location.cube_id == target_cube_id),
+            key=base_priority,
         )
 
     return min(
         candidates,
-        key=key,
+        key=lambda task: prefill_task_priority(
+            ready_time=task.ready_time,
+            route_rank=task.route_rank,
+            token_index=task.token_index,
+            matrix_priority=_matrix_priority(
+                task.matrix_name
+            ),
+            cube_id=task.location.cube_id,
+            active_cube_id=active_cube_id,
+            scheduling_mode=mode,
+        ),
     )
-
 
 # ============================================================
 # 主调度函数
@@ -986,7 +976,9 @@ def _select_ready_task(
 
 
 def schedule_prefill_layer(
+    
     *,
+
     index: RuntimeIndex,
 
     layer_id: int,
@@ -1003,6 +995,7 @@ def schedule_prefill_layer(
     ) = None,
 
     charge_initial_activation: bool = True,
+    scheduling_mode: str = PREFILL_MODE_SWITCH_AWARE,
 ) -> PrefillLayerScheduleResult:
     """
     模拟：
@@ -1041,7 +1034,9 @@ def schedule_prefill_layer(
 
     不会错误等待其他 Token。
     """
-
+    scheduling_mode = normalize_prefill_scheduling_mode(
+    scheduling_mode
+)
     if rules is None:
 
         rules = (
@@ -1450,24 +1445,11 @@ def schedule_prefill_layer(
 
                 continue
 
-            spec = (
-                _select_ready_task(
-                    queue=(
-                        ready_by_sc[
-                            sc
-                        ]
-                    ),
-
-                    current_time=(
-                        current_time
-                    ),
-
-                    active_cube_id=(
-                        active_cube_by_sc[
-                            sc
-                        ]
-                    ),
-                )
+            spec = _select_ready_task(
+                queue=ready_by_sc[sc],
+                current_time=current_time,
+                active_cube_id=active_cube_by_sc[sc],
+                scheduling_mode=scheduling_mode,
             )
 
             if spec is None:

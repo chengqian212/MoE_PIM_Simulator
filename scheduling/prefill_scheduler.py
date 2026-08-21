@@ -138,6 +138,10 @@ from scheduling.runtime_index import (
     load_runtime_index,
 )
 
+from scheduling.prefill_scheduling_mode import (
+    PREFILL_MODE_SWITCH_AWARE,
+    normalize_prefill_scheduling_mode,
+)
 
 # ============================================================
 # 异常
@@ -1077,6 +1081,7 @@ def _aggregate_subcube_stats(
 
 def schedule_prefill_batch(
     *,
+
     index: RuntimeIndex,
 
     routed_experts_by_token: Iterable[
@@ -1087,15 +1092,10 @@ def schedule_prefill_batch(
 
     rules: ExecutionRules | None = None,
 
-    initial_active_cube_by_subcube: (
-        Iterable[
-            int | None
-        ]
-        | None
-    ) = None,
-
+    initial_active_cube_by_subcube: tuple[int | None, ...] | None = None,
     charge_initial_activation: bool = True,
-) -> PrefillScheduleResult:
+    scheduling_mode: str = PREFILL_MODE_SWITCH_AWARE,
+) -> PrefillBatchScheduleResult:
     """
     模拟一个完整 Prefill Batch
     经过全部 MoE Layer。
@@ -1112,7 +1112,9 @@ def schedule_prefill_batch(
 
     不做跨 Layer pipeline。
     """
-
+    scheduling_mode = normalize_prefill_scheduling_mode(
+    scheduling_mode
+)
     if rules is None:
 
         rules = (
@@ -1219,6 +1221,7 @@ def schedule_prefill_batch(
                 charge_initial_activation=(
                     charge_initial_activation
                 ),
+                scheduling_mode=scheduling_mode,
             )
         )
 
