@@ -1,0 +1,215 @@
+MoE_PIM_Simulator 目录
+更新时间: 2026-08-22
+
+项目根目录
+├── config.py
+├── model_geometry.py
+├── run_mapping_baseline.py
+├── run_spatial_baseline.py
+├── README.md
+├── MoE-PIM_Simulator_Web_使用说明(1).md
+├── package.json
+├── package-lock.json
+├── .gitignore
+└── 目录.txt
+
+数据与结果
+├── deepseek_r1_trace/                        推理轨迹数据集
+│   └── cognitivecomputations/DeepSeek-R1-AWQ/
+│       ├── Chinese-SimpleQA/                 (2020 json)
+│       ├── HuggingFaceH4/aime_2024/           (30 json)
+│       └── livecodebench/execution/           (24 json)
+└── results/
+    ├── cache/
+    │   └── chinese_simpleqa_profile_80_20_seed42.pkl
+    ├── decode/
+    │   ├── decode_fast_evaluation.json
+    │   └── decode_optimality_probe.json
+    ├── experiments/
+    │   ├── ablation_formal/
+    │   │   ├── ablation_summary.json
+    │   │   └── naive/
+    │   │       ├── decode_fast_evaluation.json
+    │   │       ├── mapping.json
+    │   │       ├── phase_evaluation_summary.json
+    │   │       └── prefill_evaluation.json
+    │   ├── mapping_baselines/                (每个策略含 4 json)
+    │   │   ├── frequency_aware/
+    │   │   ├── least_loaded/
+    │   │   ├── random/
+    │   │   ├── random_seeds/
+    │   │   │   ├── seed_42/                  (4 json)
+    │   │   │   ├── seed_43/                  (4 json)
+    │   │   │   ├── seed_44/                  (4 json)
+    │   │   │   ├── seed_45/                  (4 json)
+    │   │   │   └── seed_46/                  (4 json)
+    │   │   ├── round_robin/
+    │   │   ├── trace_aware/
+    │   │   └── mapping_comparison_summary.json
+    │   ├── pairing_baselines/                (每个策略含 4 json)
+    │   │   ├── frequency_aware/
+    │   │   ├── greedy/
+    │   │   ├── optimal/
+    │   │   ├── random/
+    │   │   ├── sequential/
+    │   │   ├── trace_aware/
+    │   │   └── pairing_comparison_summary.json
+    │   └── prefill_scheduler/                 Prefill 调度消融
+    │       ├── aggressive_reuse/
+    │       │   └── prefill_evaluation.json
+    │       ├── largest_batch_reuse/
+    │       │   └── prefill_evaluation.json
+    │       ├── no_reuse/
+    │       │   └── prefill_evaluation.json
+    │       ├── switch_aware/
+    │       │   └── prefill_evaluation.json
+    │       └── prefill_scheduler_ablation_summary.json
+    ├── layouts/                               (12 json)
+    ├── mappings/
+    │   └── mapping_baseline_N4_H7168_W4096.json
+    ├── prefill/
+    │   ├── prefill_evaluation.json
+    │   └── prefill_optimality_probe.json
+    ├── replication/
+    │   ├── prefill_replication_evaluation.json
+    │   ├── prefill_replication_oracle_probe.json
+    │   └── replication_plan.json
+    ├── splits/
+    │   └── chinese_simpleqa_80_20_seed42.json
+    ├── phase_evaluation_summary.json
+    └── spatial_candidates.json
+
+核心代码模块
+├── evaluation/
+│   ├── __init__.py
+│   ├── ablation_summary.py
+│   ├── hardware_resolver.py
+│   ├── mapping_comparison.py
+│   ├── pairing_comparison.py
+│   ├── run_ablation_experiments.py
+│   ├── run_mapping_baselines.py
+│   ├── run_pairing_baselines.py
+│   ├── run_random_mapping_seeds.py
+│   └── spatial_metrics.py
+├── mapping/
+│   ├── __init__.py
+│   ├── logical_plane.py
+│   ├── logical_weight.py
+│   ├── physical_binder.py
+│   ├── plane_pairer.py
+│   ├── replication_planner.py
+│   ├── spatial_layout_loader.py
+│   ├── subcube_mapper.py
+│   ├── trace_profile.py
+│   ├── trace_profile_cache.py
+│   └── trace_split.py
+├── packing/
+│   ├── __init__.py
+│   ├── anonymous_packer.py
+│   ├── maxrects.py
+│   ├── physical_slot.py
+│   └── plane.py
+├── partition/
+│   ├── __init__.py
+│   ├── partition_generator.py
+│   ├── partition_template.py
+│   └── partition_validator.py
+└── scheduling/
+    ├── decode_evaluator.py
+    ├── decode_fast_evaluator.py
+    ├── decode_optimal_solver.py
+    ├── decode_optimality_probe.py
+    ├── decode_workload.py
+    ├── latency_analyzer.py
+    ├── layer_scheduler.py
+    ├── phase_evaluation_summary.py
+    ├── prefill_evaluator.py
+    ├── prefill_fast_evaluator.py
+    ├── prefill_layer_scheduler.py
+    ├── prefill_optimal_solver.py
+    ├── prefill_optimality_probe.py
+    ├── prefill_replication_evaluator.py
+    ├── prefill_replication_oracle_probe.py
+    ├── prefill_scheduler.py
+    ├── prefill_scheduling_mode.py
+    ├── prefill_workload.py
+    ├── run_phase_evaluation.py
+    ├── run_prefill_ablation.py
+    ├── runtime_index.py
+    ├── token_scheduler.py
+    ├── trace_workload.py
+    └── workload_evaluator.py
+
+测试
+└── tests/
+    ├── test_decode_optimal_solver.py
+    ├── test_hardware_resolver.py
+    ├── test_latency_analyzer.py
+    ├── test_layer_scheduler.py
+    ├── test_logical_plane.py
+    ├── test_logical_weight.py
+    ├── test_packing.py
+    ├── test_parallel_fast_path.py
+    ├── test_partition.py
+    ├── test_phase_evaluation.py
+    ├── test_physical_binder.py
+    ├── test_plane_pairer.py
+    ├── test_plane_pairer_baselines.py
+    ├── test_runtime_fast_path.py
+    ├── test_runtime_index.py
+    ├── test_spatial_layout_loader.py
+    ├── test_subcube_mapper.py
+    ├── test_subcube_mapper_feasibility.py
+    ├── test_token_scheduler.py
+    ├── test_trace_profile.py
+    ├── test_trace_protocol.py
+    ├── test_trace_workload.py
+    └── test_workload_evaluator.py
+
+WebUI
+└── webui/
+    ├── backend/
+    │   ├── comparison_api.py
+    │   ├── experiment_api.py
+    │   ├── experiment_worker.py
+    │   ├── main.py
+    │   ├── request_api.py
+    │   ├── schedule_api.py
+    │   ├── token_schedule_api.py
+    │   ├── trace_api.py
+    │   └── workload_api.py
+    └── frontend/
+        ├── .gitignore
+        ├── eslint.config.js
+        ├── index.html
+        ├── package.json
+        ├── package-lock.json
+        ├── vite.config.js
+        ├── README.md
+        ├── public/
+        │   ├── favicon.svg
+        │   └── icons.svg
+        └── src/
+            ├── App.jsx
+            ├── index.css
+            ├── main.jsx
+            ├── assets/                       (空目录)
+            └── components/
+                ├── ActiveMappingPanel.jsx
+                ├── DecodeRequestPanel.jsx
+                ├── ExecutionCube3D.jsx
+                ├── Experiments.jsx
+                ├── FullTokenPlaybackPanel.jsx
+                ├── FullTokenRunner.jsx
+                ├── GlobalCube3D.jsx
+                ├── LayerTimeline.jsx
+                ├── MappingLocator.jsx
+                ├── OverviewDashboard.jsx
+                ├── PairingComparison.jsx
+                ├── PrefillRequestPanel.jsx
+                ├── RequestSimulator.jsx
+                ├── ResultsAnalysis.jsx
+                ├── SchedulerVisualizer.jsx
+                ├── SpatialLayoutComparison.jsx
+                ├── StrategyComparison.jsx
+                └── SubCubeViewer.jsx

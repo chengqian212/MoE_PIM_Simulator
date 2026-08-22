@@ -54,6 +54,8 @@ from webui.backend.token_schedule_api import router as token_schedule_router
 from webui.backend.workload_api import router as workload_router
 
 from webui.backend.request_api import router as request_router
+
+from webui.backend.comparison_api import router as comparison_router
 # ============================================================
 # 路径
 # ============================================================
@@ -226,6 +228,14 @@ app.include_router(
 
 app.include_router(
     request_router
+)
+
+# ============================================================
+# Strategy Comparison API
+# ============================================================
+
+app.include_router(
+    comparison_router
 )
 # ============================================================
 # JSON Helper

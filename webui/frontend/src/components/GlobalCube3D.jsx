@@ -245,7 +245,7 @@ function SubCube({
 
               lineHeight: 1.55,
 
-              color: "#334155",
+              color: "#000000",
             }}
           >
             <div
@@ -253,7 +253,7 @@ function SubCube({
                 fontSize: "17px",
                 fontWeight: 700,
                 marginBottom: "7px",
-                color: "#102a43",
+                color: "#000000",
               }}
             >
               Sub-Cube {id} / 子立方
@@ -317,7 +317,7 @@ function InfoLine({
     >
       <span
         style={{
-          color: "#526579",
+          color: "#000000",
         }}
       >
         {label}
@@ -325,7 +325,7 @@ function InfoLine({
 
       <strong
         style={{
-          color: "#17263a",
+          color: "#000000",
           fontWeight: 600,
         }}
       >
@@ -774,7 +774,7 @@ function GlobalCube3D({
 
           lineHeight: 1.65,
 
-          color: "#526579",
+          color: "#000000",
 
           pointerEvents: "none",
         }}
@@ -824,14 +824,14 @@ function GlobalCube3D({
 
             fontWeight: 600,
 
-            color: "#334155",
+            color: "#000000",
           }}
         >
           已选择 / Selected：
           <strong
             style={{
               marginLeft: "5px",
-              color: "#0b4f87",
+              color: "#000000",
             }}
           >
             SC-

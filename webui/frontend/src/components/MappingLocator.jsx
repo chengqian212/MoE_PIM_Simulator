@@ -561,7 +561,7 @@ function Style() {
 
         .mapping-locator-title strong {
           display: block;
-          color: #344454;
+          color: #000000;
           font-size: 16px;
           line-height: 1.25;
         }
@@ -607,14 +607,14 @@ function Style() {
           border: 1px solid #d4dce4;
           border-radius: 5px;
           background: #fbfcfd;
-          color: #344454;
+          color: #000000;
           font-size: 16px;
           font-weight: 550;
           outline: none;
         }
 
         .mapping-locator-controls select:focus {
-          border-color: #7e9db9;
+          border-color: #000000;
           box-shadow: 0 0 0 2px rgba(92, 130, 166, 0.12);
         }
 
@@ -664,7 +664,7 @@ function Style() {
 
         .locator-hit-main strong {
           display: block;
-          color: #3b4a58;
+          color: #000000;
           font-size: 16px;
         }
 

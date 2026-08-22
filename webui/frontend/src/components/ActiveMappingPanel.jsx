@@ -1069,7 +1069,7 @@ function Style() {
 
         .compact-map-summary strong {
           color:
-            #455563;
+            #000000;
 
           font-size:
             11px;
@@ -1300,7 +1300,7 @@ function Style() {
 
         .compact-expert-cell strong {
           color:
-            #35414d;
+            #000000;
 
           font-size:
             11px;
@@ -1369,7 +1369,7 @@ function Style() {
 
         .matrix-main-location strong {
           color:
-            #3f5060;
+            #000000;
 
           font-size:
             10px;

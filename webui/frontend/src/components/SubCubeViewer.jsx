@@ -1405,7 +1405,7 @@ function Style() {
         .subcube-header h2 {
           margin: 0 0 5px;
 
-          color: #2f3945;
+          color: #000000;
 
           font-size: 24px;
           font-weight: 700;
@@ -1415,7 +1415,7 @@ function Style() {
         .subcube-header p {
           margin: 0;
 
-          color: #5f7083;
+          color: #000000;
 
           font-size: 15px;
           line-height: 1.55;
@@ -1430,7 +1430,7 @@ function Style() {
 
           background: #ffffff;
 
-          color: #59738e;
+          color: #000000;
 
           font-size: 15px;
           font-weight: 700;
@@ -1463,7 +1463,7 @@ function Style() {
         .depth-title {
           margin-right: 7px;
 
-          color: #405a73;
+          color: #000000;
 
           font-size: 15px;
           font-weight: 700;
@@ -1482,7 +1482,7 @@ function Style() {
 
           background: #ffffff;
 
-          color: #556272;
+          color: #000000;
 
           font-size: 20px;
 
@@ -1508,7 +1508,7 @@ function Style() {
           border: 1px solid #d9dfe6;
           border-radius: 4px;
 
-          color: #526579;
+          color: #000000;
 
           font-size: 15px;
         }
@@ -1524,7 +1524,7 @@ function Style() {
 
           text-align: center;
 
-          color: #344152;
+          color: #000000;
 
           font-size: 16px;
           font-weight: 700;
@@ -1547,7 +1547,7 @@ function Style() {
 
           text-align: right;
 
-          color: #526579;
+          color: #000000;
 
           font-size: 16px;
           font-weight: 700;
@@ -1564,18 +1564,18 @@ function Style() {
           border: 1px solid #b9cede;
           border-radius: 6px;
           background: #eef6fb;
-          color: #496a86;
+          color: #000000;
           font-size: 16px;
         }
 
         .mapping-focus-banner strong {
-          color: #355b79;
+          color: #000000;
           font-size: 15px;
         }
 
         .mapping-focus-banner span {
           margin-left: auto;
-          color: #6f879b;
+          color: #000000;
           font-size: 15px;
         }
 
@@ -1626,7 +1626,7 @@ function Style() {
 
 
         .plane-title {
-          color: #34404d;
+          color: #000000;
 
           font-size: 18px;
           font-weight: 700;
@@ -1636,7 +1636,7 @@ function Style() {
         .plane-subtitle {
           margin-top: 4px;
 
-          color: #64748b;
+          color: #000000;
 
           font-size: 16px;
         }
@@ -1647,7 +1647,7 @@ function Style() {
 
           gap: 15px;
 
-          color: #526579;
+          color: #000000;
 
           font-size: 16px;
         }
@@ -1661,7 +1661,7 @@ function Style() {
 
 
         .plane-stats strong {
-          color: #3c4855;
+          color: #000000;
         }
 
 
@@ -1727,7 +1727,7 @@ function Style() {
           transform:
             translateX(-50%);
 
-          color: #526579;
+          color: #000000;
 
           font-size: 16px;
           font-weight: 600;
@@ -1745,7 +1745,7 @@ function Style() {
             translateY(-50%)
             rotate(-90deg);
 
-          color: #526579;
+          color: #000000;
 
           font-size: 16px;
           font-weight: 600;
@@ -1760,7 +1760,7 @@ function Style() {
 
           margin-top: 4px;
 
-          color: #64748b;
+          color: #000000;
 
           font-size: 15px;
         }
@@ -1972,7 +1972,7 @@ function Style() {
         .weight-panel-title {
           margin-bottom: 16px;
 
-          color: #405a73;
+          color: #000000;
 
           font-size: 15px;
           font-weight: 700;
@@ -1985,7 +1985,7 @@ function Style() {
         .weight-detail-empty {
           padding-top: 8px;
 
-          color: #64748b;
+          color: #000000;
 
           font-size: 15px;
 
@@ -2006,7 +2006,7 @@ function Style() {
         .detail-small {
           margin-bottom: 4px;
 
-          color: #64748b;
+          color: #000000;
 
           font-size: 15px;
           font-weight: 700;
@@ -2018,7 +2018,7 @@ function Style() {
         .detail-header h3 {
           margin: 0;
 
-          color: #34404d;
+          color: #000000;
 
           font-size: 20px;
         }
@@ -2058,14 +2058,14 @@ function Style() {
           border-bottom:
             1px solid #f0f2f4;
 
-          color: #526579;
+          color: #000000;
 
           font-size: 16px;
         }
 
 
         .detail-row strong {
-          color: #3f4b58;
+          color: #000000;
 
           font-size: 16px;
           font-weight: 700;
